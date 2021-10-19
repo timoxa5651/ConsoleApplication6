@@ -95,12 +95,95 @@ public:
 	}
 };
 
+struct rhomb : public shape {
+public:
+	double cx0, cy0, ca, cb;
+
+	rhomb(double kx, double ky, double ka, double kb, bool in) {
+		this->cx0 = kx;
+		this->cy0 = ky;
+		this->ca = ka;
+		this->cb = kb;
+		this->inside = in;
+	}
+
+	virtual pair<double, double> calc(double x) final {
+		double rs = this->cb * (1 + abs(x - this->cx0) / this->ca);
+		return { -abs(rs - this->cy0), abs(rs - this->cy0) };
+	}
+
+	virtual bool good(double x, double y) final {
+		auto sol = this->calc(x);
+		bool flag = sol.first <= y && y <= sol.second;
+		if (inside)
+			return flag;
+		else
+			return !flag;
+	}
+};
+
+struct circle : public shape {
+public:
+	double cx, cy, r; // x^2 + y^2 = r^2
+
+	circle(double kx, double ky, double kr, bool in) {
+		this->cx = kx;
+		this->cy = ky;
+		this->r = kr;
+		this->inside = in;
+	}
+
+	virtual pair<double, double> calc(double x) final {
+		double rs = sqrtl(this->r * this->r - (x - this->cx) * (x - this->cx));
+		return { -rs + this->cy, rs + this->cy };
+	}
+
+	virtual bool good(double x, double y) final {
+		auto sol = this->calc(x);
+		bool flag = sol.first <= y && y <= sol.second;
+		if (inside)
+			return flag;
+		else
+			return !flag;
+	}
+};
+
+struct rectangle : public shape {
+public:
+	double x1, y1, x2, y2; // ...
+
+	rectangle(double px1, double py1, double px2, double py2, bool in) {
+		this->x1 = px1;
+		this->x2 = px2;
+		this->y1 = py1;
+		this->y2 = py2;
+		this->inside = in;
+	}
+
+	virtual pair<double, double> calc(double x) final {
+		if (x >= this->x1 && x <= this->x2) {
+			return { min(this->y1, this->y2), max(this->y1, this->y2) };
+		}
+		return { FLT_MAX, FLT_MAX };
+	}
+
+	virtual bool good(double x, double y) final {
+		auto sol = this->calc(x);
+		bool flag = sol.first <= y && y <= sol.second;
+		if (inside)
+			return flag;
+		else
+			return !flag;
+	}
+};
+
 struct plot {
 public:
 	RenderWindow* window;
 	float size;
 	float current_scale;
 	Vector2f offset;
+	vector<vector<bool>> frame_filled;
 
 	plot(RenderWindow* window) {
 		this->window = window;
@@ -123,33 +206,86 @@ public:
 	}
 
 	void draw_grid() {
-		float _padd = abs(this->wnd_to_plot(Vector2f(this->size, this->size)).x - this->wnd_to_plot(Vector2f(0, 0)).x);
-		for (float i = 0; i < this->size; i += _padd) {
-			Vertex vertices[2];
-			vertices[0] = Vertex(Vector2f(i, this->size));
-			vertices[1] = Vertex(Vector2f(i, 0));
-			window->draw(vertices, 2, Lines);
-			/*if (i == 0 || i == lCnt / 2 || i == lCnt) {
-				string str;
-				if (i == lCnt / 2) {
-					auto pnt = wnd_to_plot(Vector2f(i * (this->size / lCnt), this->size / 2));
-					str = fmt::format("({:.1f} {:.1f})", pnt.x, pnt.y);
-				}
-				else {
-					str = fmt::format("{:.1f}", wnd_to_plot(Vector2f(i * (this->size / lCnt), this->size / 2)).x);
-				}
 
-				Text text;
-				text.setFont(font);
-				text.setString(str.c_str());
-				text.setCharacterSize(10);
-				pPos.x = min(pPos.x, this->size - text.getLocalBounds().width - 2);
-				text.setPosition(pPos);
-				window->draw(text);
-			}*/
+		// x axis
+		float xStart = wnd_to_plot(Vector2f(0, 0)).x;
+		float xEnd = wnd_to_plot(Vector2f(this->size, 0)).x;
+		if (xEnd < xStart)
+			swap(xStart, xEnd);
+		xStart = round(xStart);
+		xEnd = round(xEnd);
+		for (float cur = xStart; cur <= xEnd; cur += 1.f) {
+			Vector2f wPos = plt_to_wnd(Vector2f(cur, 0));
+
+			Vertex vertices[2];
+			vertices[0] = Vertex(Vector2f(wPos.x, 0));
+			vertices[1] = Vertex(Vector2f(wPos.x, this->size));
+			vertices[0].color = Color(255, 255, 255, 30);
+			vertices[1].color = Color(255, 255, 255, 30);
+			window->draw(vertices, 2, Lines);
 		}
 
+		//y axis
+		xStart = wnd_to_plot(Vector2f(0, 0)).y;
+		xEnd = wnd_to_plot(Vector2f(0, this->size)).y;
+		if (xEnd < xStart)
+			swap(xStart, xEnd);
+		xStart = round(xStart);
+		xEnd = round(xEnd);
+		for (float cur = xStart; cur <= xEnd; cur += 1.f) {
+			Vector2f wPos = plt_to_wnd(Vector2f(0, cur));
 
+			Vertex vertices[2];
+			vertices[0] = Vertex(Vector2f(0, wPos.y));
+			vertices[1] = Vertex(Vector2f(this->size, wPos.y));
+			vertices[0].color = Color(255, 255, 255, 30);
+			vertices[1].color = Color(255, 255, 255, 30);
+			window->draw(vertices, 2, Lines);
+		}
+
+		//0, 0
+		Vector2f pPos = plt_to_wnd(Vector2f(0, 0));
+		if (pPos.x >= 0 && pPos.x < this->size && pPos.y >= 0 && pPos.y < this->size) {
+			Text text;
+			text.setFont(font);
+			text.setString("(0,0)");
+			text.setCharacterSize(10);
+			text.setPosition(pPos);
+			window->draw(text);
+		}
+		//radius
+
+	}
+
+	void begin_frame() {
+		this->frame_filled.clear();
+		this->frame_filled.resize(this->size, vector<bool>(this->size, false));
+	}
+
+	void end_frame() {
+		const float fill_color[4] = { 1.f, 1.f, 1.f, 0.2f };
+
+		sf::Uint8* pixels = new sf::Uint8[this->size * this->size * 4];
+		memset(pixels, 0, this->size * this->size * 4);
+
+		sf::Texture texture;
+		texture.create(this->size, this->size);
+
+		for (int x = 0; x < this->size; ++x) {
+			for (int y = 0; y < this->size; ++y) {
+				int p = (x * this->size + y) * 4;
+				if (this->frame_filled[x][y]) {
+					pixels[p] = (sf::Uint8)(fill_color[0] * 255.f);
+					pixels[p + 1] = (sf::Uint8)(fill_color[1] * 255.f);
+					pixels[p + 2] = (sf::Uint8)(fill_color[2] * 255.f);
+					pixels[p + 3] = (sf::Uint8)(fill_color[3] * 255.f);
+				}
+			}
+		}
+
+		texture.update(pixels);
+		this->window->draw(sf::Sprite(texture));
+		delete[] pixels;
 	}
 };
 
@@ -175,31 +311,19 @@ public:
 	}
 
 	void render(plot* pl) {
-		const float fill_color[4] = {1.f, 1.f, 1.f, 0.2f};
 		const float outline_color[4] = { 1.f, 1.f, 1.f, 1.f };
-
-		sf::Uint8* pixels = new sf::Uint8[pl->size * pl->size * 4];
-		memset(pixels, 0, pl->size * pl->size * 4);
-
-		sf::Texture texture;
-		texture.create(pl->size, pl->size);
 
 		for (int x = 0; x < pl->size; ++x) {
 			for (int y = 0; y < pl->size; ++y) {
-				int p = (x * pl->size + y) * 4;
-				Vector2f coords = pl->wnd_to_plot(Vector2f(y, x));
-				if (this->good(coords.x, coords.y)) {
-					pixels[p] =     (sf::Uint8)(fill_color[0] * 255.f);
-					pixels[p + 1] = (sf::Uint8)(fill_color[1] * 255.f);
-					pixels[p + 2] = (sf::Uint8)(fill_color[2] * 255.f);
-					pixels[p + 3] = (sf::Uint8)(fill_color[3] * 255.f);
+				if (!pl->frame_filled[x][y]) {
+					int p = (x * pl->size + y) * 4;
+					Vector2f coords = pl->wnd_to_plot(Vector2f(y, x));
+					if (this->good(coords.x, coords.y)) {
+						pl->frame_filled[x][y] = true;
+					}
 				}
 			}
 		}
-
-		texture.update(pixels);
-		pl->window->draw(sf::Sprite(texture));
-		delete[] pixels;
 
 		//outline
 
@@ -210,36 +334,39 @@ public:
 			for (int x = 0; x < pl->size; ++x) {
 				float px = pl->wnd_to_plot(Vector2f(x, 0)).x;
 				pair<double, double> solutions = sh->calc(px);
-				if(solutions.first < FLT_MAX) {
+				if (solutions.first < FLT_MAX) {
 					Vector2f spos = pl->plt_to_wnd(Vector2f(px, solutions.first));
 
-					if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
-						sf::Vertex vertex;
-						vertex.position = Vector2f(spos.x, spos.y);
-						vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
-						vt_buffer[0].push_back(vertex);
-					}
+					//if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
+					sf::Vertex vertex;
+					vertex.position = Vector2f(spos.x, spos.y);
+					vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
+					vt_buffer[0].push_back(vertex);
+					//}
 				}
 
 				if (solutions.second < FLT_MAX) {
 					Vector2f spos = pl->plt_to_wnd(Vector2f(px, solutions.second));
 
-					if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
-						sf::Vertex vertex;
-						vertex.position = Vector2f(spos.x, spos.y);
-						vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
-						vt_buffer[1].push_back(vertex);
-					}
+					//if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
+					sf::Vertex vertex;
+					vertex.position = Vector2f(spos.x, spos.y);
+					vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
+					vt_buffer[1].push_back(vertex);
+					//}
 				}
 			}
 
-			if(vt_buffer[0].size())
+			if (vt_buffer[0].size())
 				pl->window->draw(vt_buffer[0].data(), vt_buffer[0].size(), PrimitiveType::LinesStrip);
-			if(vt_buffer[1].size())
+			if (vt_buffer[1].size())
 				pl->window->draw(vt_buffer[1].data(), vt_buffer[1].size(), PrimitiveType::LinesStrip);
 			if (vt_buffer[0].size() && vt_buffer[1].size()) {
 				Vertex vt[2] = { vt_buffer[0][vt_buffer[0].size() - 1], vt_buffer[1][vt_buffer[1].size() - 1] };
 				pl->window->draw(vt, 2, PrimitiveType::LinesStrip);
+
+				Vertex vt2[2] = { vt_buffer[0][0], vt_buffer[1][0] };
+				pl->window->draw(vt2, 2, PrimitiveType::LinesStrip);
 			}
 			vt_buffer[0].clear();
 			vt_buffer[1].clear();
@@ -257,10 +384,14 @@ int main()
 	plot* pl = new plot(&window);
 	area area1 = area();
 	area1.add(new parabola(0.5f, 0, 0, true));
-	area1.add(new line(1.f, 0, true));
-	area1.add(new parabola_horizontal(-1.f, 4, -1, false));
+	area1.add(new line(1.5f, 0, true));
+	area1.add(new parabola_horizontal(-1.f, 4, 0.f, false));
+	area1.add(new circle(2.f, 2.f, 1.f, false));
+	area1.add(new rectangle(-1.f, 2.f, 0.f, 3.f, false));
+	area1.add(new rhomb(1, 1, 1, 1, true));
 
-	areas.push_back(area1);
+	for (int i = 0; i < 10; ++i)
+		areas.push_back(area1);
 	while (window.isOpen())
 	{
 		static bool _moving = false;
@@ -302,10 +433,13 @@ int main()
 		if (_moving) {
 			pl->offset -= (sf::Vector2f(sf::Mouse::getPosition(window)) - _start);
 		}
+
+		pl->begin_frame();
+		pl->draw_grid();
 		for (area ar : areas) {
 			ar.render(pl);
 		}
-		pl->draw_grid();
+		pl->end_frame();
 
 		pl->offset = prev_offset;
 		window.display();
