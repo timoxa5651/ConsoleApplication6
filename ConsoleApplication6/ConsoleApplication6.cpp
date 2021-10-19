@@ -243,15 +243,7 @@ public:
 			window->draw(vertices, 2, Lines);
 		}
 
-				Text text;
-				text.setFont(font);
-				text.setString(str.c_str());
-				text.setCharacterSize(10);
-				pPos.x = min(pPos.x, this->size - text.getLocalBounds().width - 2);
-				text.setPosition(pPos);
-				window->draw(text);
-			}
-		}
+	}
 
 	void end_frame() {
 		const float fill_color[4] = { 1.f, 1.f, 1.f, 0.2f };
