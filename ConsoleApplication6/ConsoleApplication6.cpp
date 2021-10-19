@@ -123,24 +123,13 @@ public:
 	}
 
 	void draw_grid() {
-		constexpr int lCnt = 12;
-
-		// x axis
-		Vertex vertices[2] =
-		{
-			Vertex(Vector2f(0, this->size / 2)),
-			Vertex(Vector2f(this->size, this->size / 2))
-		};
-		window->draw(vertices, 2, Lines);
-		float pRad = wnd_to_plot(Vector2f(0, this->size / 2)).x - wnd_to_plot(Vector2f(this->size, this->size / 2)).x; //pRad * ((double)i / lCnt - 0.5)
-
-		for (int i = 0; i <= lCnt; ++i) {
-			Vector2f pPos = Vector2f(i * (this->size / lCnt), this->size / 2);
-
-			vertices[0] = Vertex(Vector2f(i * (this->size / lCnt), this->size / 2 - 4));
-			vertices[1] = Vertex(Vector2f(i * (this->size / lCnt), this->size / 2 + 4));
+		float _padd = abs(this->wnd_to_plot(Vector2f(this->size, this->size)).x - this->wnd_to_plot(Vector2f(0, 0)).x);
+		for (float i = 0; i < this->size; i += _padd) {
+			Vertex vertices[2];
+			vertices[0] = Vertex(Vector2f(i, this->size));
+			vertices[1] = Vertex(Vector2f(i, 0));
 			window->draw(vertices, 2, Lines);
-			if (i == 0 || i == lCnt / 2 || i == lCnt) {
+			/*if (i == 0 || i == lCnt / 2 || i == lCnt) {
 				string str;
 				if (i == lCnt / 2) {
 					auto pnt = wnd_to_plot(Vector2f(i * (this->size / lCnt), this->size / 2));
@@ -157,30 +146,10 @@ public:
 				pPos.x = min(pPos.x, this->size - text.getLocalBounds().width - 2);
 				text.setPosition(pPos);
 				window->draw(text);
-			}
+			}*/
 		}
 
-		vertices[0] = Vertex(Vector2f(this->size / 2, 0));
-		vertices[1] = Vertex(Vector2f(this->size / 2, this->size));
-		window->draw(vertices, 2, Lines);
-		for (int i = 0; i <= lCnt; ++i) {
-			Vector2f pPos = Vector2f(this->size / 2, i * (this->size / lCnt));
 
-			vertices[0] = Vertex(Vector2f(this->size / 2 - 4, i * (this->size / lCnt)));
-			vertices[1] = Vertex(Vector2f(this->size / 2 + 4, i * (this->size / lCnt)));
-			window->draw(vertices, 2, Lines);
-			if (i == 0 || i == lCnt) {
-				string str = fmt::format("{:.1f}", wnd_to_plot(pPos).y);
-
-				Text text;
-				text.setFont(font);
-				text.setString(str.c_str());
-				text.setCharacterSize(10);
-				pPos.y = min(pPos.y, size - text.getLocalBounds().height - 2);
-				text.setPosition(pPos);
-				window->draw(text);
-			}
-		}
 	}
 };
 
