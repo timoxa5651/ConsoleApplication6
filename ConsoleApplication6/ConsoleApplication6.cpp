@@ -108,7 +108,7 @@ public:
 	}
 
 	virtual pair<double, double> calc(double x) final {
-		double rs = this->cb * (1 + abs(x - this->cx0) / this->ca);
+		double rs = this->cb * (1 - abs(x - this->cx0) / this->ca);
 		return { -abs(rs - this->cy0), abs(rs - this->cy0) };
 	}
 
