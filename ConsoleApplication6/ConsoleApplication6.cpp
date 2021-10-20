@@ -243,6 +243,23 @@ public:
 			window->draw(vertices, 2, Lines);
 		}
 
+		//0, 0
+		Vector2f pPos = plt_to_wnd(Vector2f(0, 0));
+		if (pPos.x >= 0 && pPos.x < this->size && pPos.y >= 0 && pPos.y < this->size) {
+			Text text;
+			text.setFont(font);
+			text.setString("(0,0)");
+			text.setCharacterSize(10);
+			text.setPosition(pPos);
+			window->draw(text);
+		}
+		//radius
+
+	}
+
+	void begin_frame() {
+		this->frame_filled.clear();
+		this->frame_filled.resize(this->size, vector<bool>(this->size, false));
 	}
 
 	void end_frame() {
@@ -320,23 +337,23 @@ public:
 				if (solutions.first < FLT_MAX) {
 					Vector2f spos = pl->plt_to_wnd(Vector2f(px, solutions.first));
 
-					if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
-						sf::Vertex vertex;
-						vertex.position = Vector2f(spos.x, spos.y);
-						vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
-						vt_buffer[0].push_back(vertex);
-					}
+					//if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
+					sf::Vertex vertex;
+					vertex.position = Vector2f(spos.x, spos.y);
+					vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
+					vt_buffer[0].push_back(vertex);
+					//}
 				}
 
 				if (solutions.second < FLT_MAX) {
 					Vector2f spos = pl->plt_to_wnd(Vector2f(px, solutions.second));
 
-					if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
-						sf::Vertex vertex;
-						vertex.position = Vector2f(spos.x, spos.y);
-						vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
-						vt_buffer[1].push_back(vertex);
-					}
+					//if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
+					sf::Vertex vertex;
+					vertex.position = Vector2f(spos.x, spos.y);
+					vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
+					vt_buffer[1].push_back(vertex);
+					//}
 				}
 			}
 
@@ -367,10 +384,14 @@ int main()
 	plot* pl = new plot(&window);
 	area area1 = area();
 	area1.add(new parabola(0.5f, 0, 0, true));
-	area1.add(new line(1.f, 0, true));
-	area1.add(new parabola_horizontal(-1.f, 4, -1, false));
+	area1.add(new line(1.5f, 0, true));
+	area1.add(new parabola_horizontal(-1.f, 4, 0.f, false));
+	area1.add(new circle(2.f, 2.f, 1.f, false));
+	area1.add(new rectangle(-1.f, 2.f, 0.f, 3.f, false));
+	area1.add(new rhomb(1, 1, 1, 1, true));
 
-	areas.push_back(area1);
+	for (int i = 0; i < 10; ++i)
+		areas.push_back(area1);
 	while (window.isOpen())
 	{
 		static bool _moving = false;
