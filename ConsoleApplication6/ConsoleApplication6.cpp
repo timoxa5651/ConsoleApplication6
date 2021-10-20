@@ -273,26 +273,26 @@ public:
 	void end_frame() {
 		const float fill_color[4] = { 1.f, 1.f, 1.f, 0.2f };
 
-		sf::Uint8* pixels = new sf::Uint8[this->size * this->size * 4];
+		Uint8* pixels = new Uint8[this->size * this->size * 4];
 		memset(pixels, 0, this->size * this->size * 4);
 
-		sf::Texture texture;
+		Texture texture;
 		texture.create(this->size, this->size);
 
 		for (int x = 0; x < this->size; ++x) {
 			for (int y = 0; y < this->size; ++y) {
 				int p = (x * this->size + y) * 4;
 				if (this->frame_filled[x][y]) {
-					pixels[p] = (sf::Uint8)(fill_color[0] * 255.f);
-					pixels[p + 1] = (sf::Uint8)(fill_color[1] * 255.f);
-					pixels[p + 2] = (sf::Uint8)(fill_color[2] * 255.f);
-					pixels[p + 3] = (sf::Uint8)(fill_color[3] * 255.f);
+					pixels[p] = (Uint8)(fill_color[0] * 255.f);
+					pixels[p + 1] = (Uint8)(fill_color[1] * 255.f);
+					pixels[p + 2] = (Uint8)(fill_color[2] * 255.f);
+					pixels[p + 3] = (Uint8)(fill_color[3] * 255.f);
 				}
 			}
 		}
 
 		texture.update(pixels);
-		this->window->draw(sf::Sprite(texture));
+		this->window->draw(Sprite(texture));
 		delete[] pixels;
 	}
 };
@@ -346,7 +346,7 @@ public:
 					Vector2f spos = pl->plt_to_wnd(Vector2f(px, solutions.first));
 
 					//if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
-					sf::Vertex vertex;
+					Vertex vertex;
 					vertex.position = Vector2f(spos.x, spos.y);
 					vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
 					vt_buffer[0].push_back(vertex);
@@ -357,7 +357,7 @@ public:
 					Vector2f spos = pl->plt_to_wnd(Vector2f(px, solutions.second));
 
 					//if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
-					sf::Vertex vertex;
+					Vertex vertex;
 					vertex.position = Vector2f(spos.x, spos.y);
 					vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
 					vt_buffer[1].push_back(vertex);
@@ -385,7 +385,7 @@ public:
 int main()
 {
 	vector<area> areas;
-	RenderWindow window(VideoMode(800, 800), "123");
+	RenderWindow window(VideoMode(1000, 1000), "123");
 
 	font.loadFromFile("arial.ttf");
 
@@ -396,10 +396,9 @@ int main()
 	area1.add(new parabola_horizontal(-1.f, 4, 0.f, false));
 	area1.add(new circle(2.f, 2.f, 1.f, false));
 	area1.add(new rectangle(-1.f, 2.f, 0.f, 3.f, false));
-	area1.add(new rhomb(1, 5, 1, 1, true));
+	area1.add(new rhomb(1, 5, 1, 1, false));
 
-	for (int i = 0; i < 10; ++i)
-		areas.push_back(area1);
+	areas.push_back(area1);
 	while (window.isOpen())
 	{
 		static bool _moving = false;
@@ -411,7 +410,7 @@ int main()
 			if (event.type == Event::Closed) {
 				window.close();
 			}
-			else if (event.type == sf::Event::MouseWheelScrolled)
+			else if (event.type == Event::MouseWheelScrolled)
 			{
 				if (event.mouseWheelScroll.delta > 0) {
 					pl->current_scale *= 1.07f;
@@ -420,16 +419,16 @@ int main()
 					pl->current_scale /= 1.05f;
 				}
 			}
-			else if (event.type == sf::Event::MouseButtonPressed) {
+			else if (event.type == Event::MouseButtonPressed) {
 				if (event.mouseButton.button == 0) {
 					_moving = true;
-					_start = sf::Vector2f(sf::Mouse::getPosition(window));
+					_start = Vector2f(Mouse::getPosition(window));
 				}
 			}
-			else if (event.type == sf::Event::MouseButtonReleased) {
+			else if (event.type == Event::MouseButtonReleased) {
 				if (event.mouseButton.button == 0) {
 					if (_moving) {
-						pl->offset -= (sf::Vector2f(sf::Mouse::getPosition(window)) - _start);
+						pl->offset -= (Vector2f(Mouse::getPosition(window)) - _start);
 					}
 					_moving = false;
 				}
@@ -439,7 +438,7 @@ int main()
 
 		Vector2f prev_offset = pl->offset;
 		if (_moving) {
-			pl->offset -= (sf::Vector2f(sf::Mouse::getPosition(window)) - _start);
+			pl->offset -= (Vector2f(Mouse::getPosition(window)) - _start);
 		}
 
 		pl->begin_frame();
