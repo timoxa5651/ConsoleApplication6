@@ -109,11 +109,19 @@ public:
 
 	virtual pair<double, double> calc(double x) final {
 		double rs = this->cb * (1 - abs(x - this->cx0) / this->ca);
-		return { -abs(rs - this->cy0), abs(rs - this->cy0) };
+		double r1 = -rs + this->cy0;
+		double r2 = rs + this->cy0;
+
+		double cc = abs(x - this->cx0) / this->ca;
+		bool c1 = cc + (abs(r1 - this->cy0) / this->cb) == 1;
+		bool c2 = cc + (abs(r2 - this->cy0) / this->cb) == 1;
+
+		return { c1 ? r1 : FLT_MAX, c2 ? r2 : FLT_MAX };
 	}
 
 	virtual bool good(double x, double y) final {
 		auto sol = this->calc(x);
+
 		bool flag = sol.first <= y && y <= sol.second;
 		if (inside)
 			return flag;
@@ -377,7 +385,7 @@ public:
 int main()
 {
 	vector<area> areas;
-	RenderWindow window(VideoMode(600, 600), "123");
+	RenderWindow window(VideoMode(800, 800), "123");
 
 	font.loadFromFile("arial.ttf");
 
@@ -388,7 +396,7 @@ int main()
 	area1.add(new parabola_horizontal(-1.f, 4, 0.f, false));
 	area1.add(new circle(2.f, 2.f, 1.f, false));
 	area1.add(new rectangle(-1.f, 2.f, 0.f, 3.f, false));
-	area1.add(new rhomb(1, 1, 1, 1, true));
+	area1.add(new rhomb(1, 5, 1, 1, true));
 
 	for (int i = 0; i < 10; ++i)
 		areas.push_back(area1);
