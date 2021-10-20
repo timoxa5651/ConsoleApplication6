@@ -13,23 +13,30 @@ Font font;
 struct shape {
 public:
 	bool inside;
+	bool ignore;
 
+	shape() : ignore(false) {};
 	virtual pair<double, double> calc(double x) { // :(
 		return { FLT_MAX, FLT_MAX };
 	}
 	virtual bool good(double x, double y) {
 		return false;
 	}
+	virtual bool connect() {
+		return true;
+	}
 };
 
 struct parabola : public shape {
 public:
 	double a, b, c; //y = ax^2 + bx + c
+	double ox;
 
-	parabola(double ka, double kb, double kc, bool in) {
+	parabola(double ka, double kb, double kc, double kx, bool in) {
 		this->a = ka;
 		this->b = kb;
 		this->c = kc;
+		this->ox = kx;
 		this->inside = in;
 		if (this->a < 0) {
 			this->inside = !this->inside;
@@ -37,6 +44,7 @@ public:
 	}
 
 	virtual pair<double, double> calc(double x) final {
+		x -= this->ox;
 		return { this->a * x * x + this->b * x + this->c, FLT_MAX };
 	}
 
@@ -107,16 +115,19 @@ public:
 		this->inside = in;
 	}
 
+	virtual bool connect() {
+		return false;
+	}
+
 	virtual pair<double, double> calc(double x) final {
 		double rs = this->cb * (1 - abs(x - this->cx0) / this->ca);
-		double r1 = -rs + this->cy0;
-		double r2 = rs + this->cy0;
+		if (rs < 0.f) {
+			return { FLT_MAX, FLT_MAX };
+		}
+		double r1 = this->cy0 - rs;
+		double r2 = this->cy0 + rs;
 
-		double cc = abs(x - this->cx0) / this->ca;
-		bool c1 = cc + (abs(r1 - this->cy0) / this->cb) == 1;
-		bool c2 = cc + (abs(r2 - this->cy0) / this->cb) == 1;
-
-		return { c1 ? r1 : FLT_MAX, c2 ? r2 : FLT_MAX };
+		return { r1, r2 };
 	}
 
 	virtual bool good(double x, double y) final {
@@ -261,8 +272,7 @@ public:
 			text.setPosition(pPos);
 			window->draw(text);
 		}
-		//radius
-
+		
 	}
 
 	void begin_frame() {
@@ -294,6 +304,18 @@ public:
 		texture.update(pixels);
 		this->window->draw(Sprite(texture));
 		delete[] pixels;
+
+		Vertex vertices[2];
+		Vector2f zero = this->plt_to_wnd(Vector2f(0, 0));
+		RectangleShape rectangle(Vector2f(2.f, this->size));
+		rectangle.move(Vector2f(zero.x, 0));
+		rectangle.setFillColor(Color(175, 180, 240, 255));
+		this->window->draw(rectangle);
+
+		rectangle = RectangleShape(Vector2f(this->size, 2.f));
+		rectangle.move(Vector2f(0, zero.y));
+		rectangle.setFillColor(Color(175, 180, 240, 255));
+		this->window->draw(rectangle);
 	}
 };
 
@@ -339,6 +361,9 @@ public:
 		vt_buffer[0].reserve(pl->size);
 		vt_buffer[1].reserve(pl->size);
 		for (shape* sh : this->fragments) {
+			if (sh->ignore) {
+				continue;
+			}
 			for (int x = 0; x < pl->size; ++x) {
 				float px = pl->wnd_to_plot(Vector2f(x, 0)).x;
 				pair<double, double> solutions = sh->calc(px);
@@ -369,7 +394,7 @@ public:
 				pl->window->draw(vt_buffer[0].data(), vt_buffer[0].size(), PrimitiveType::LinesStrip);
 			if (vt_buffer[1].size())
 				pl->window->draw(vt_buffer[1].data(), vt_buffer[1].size(), PrimitiveType::LinesStrip);
-			if (vt_buffer[0].size() && vt_buffer[1].size()) {
+			if (vt_buffer[0].size() && vt_buffer[1].size() && sh->connect()) {
 				Vertex vt[2] = { vt_buffer[0][vt_buffer[0].size() - 1], vt_buffer[1][vt_buffer[1].size() - 1] };
 				pl->window->draw(vt, 2, PrimitiveType::LinesStrip);
 
@@ -385,20 +410,60 @@ public:
 int main()
 {
 	vector<area> areas;
-	RenderWindow window(VideoMode(1000, 1000), "123");
+	RenderWindow window(VideoMode(800, 800), "123");
 
 	font.loadFromFile("arial.ttf");
 
 	plot* pl = new plot(&window);
 	area area1 = area();
-	area1.add(new parabola(0.5f, 0, 0, true));
-	area1.add(new line(1.5f, 0, true));
-	area1.add(new parabola_horizontal(-1.f, 4, 0.f, false));
-	area1.add(new circle(2.f, 2.f, 1.f, false));
-	area1.add(new rectangle(-1.f, 2.f, 0.f, 3.f, false));
-	area1.add(new rhomb(1, 5, 1, 1, false));
-
+	area1.add(new parabola(-0.5f, 0, -0.5f, 3.5f, true));
+	area1.add(new circle(4.f, -1.f, 2.f, true));
+	area1.add(new rhomb(1.5, 0.5f, 10.f / 2, 2.5f, false));
+	area1.add(new parabola_horizontal(-1.f, 3.f, -1.f, false));
 	areas.push_back(area1);
+
+	area area2 = area();
+	area2.add(new parabola_horizontal(-1.f, 3.f, -1.f, false));
+	area2.add(new rhomb(1.5, 0.5f, 10.f / 2, 2.5f, false));
+	area2.add(new line(0.25f, 2.5f, false));
+	area2.add(new rectangle(0.5f, 1.f, 4.5f, 2.5f, false));
+	area2.add(new parabola(-0.5f, 0, -0.5f, 3.5f, false));
+	area2.add(new circle(4.f, -1.f, 2.f, false));
+	area2.add(new line(-0.75f, -3.5f, true));
+	auto high_iq = new rectangle(-2.f, -4.5f, 2.f, -2.f, false);
+	auto high_iq2 = new rectangle(0.f, 2.f, 1.f, 3.f, false);
+	high_iq2->ignore = high_iq->ignore = true;
+	area2.add(high_iq);
+	area2.add(high_iq2);
+	areas.push_back(area2);
+
+	area area3 = area();
+	area3.add(new rhomb(1.5, 0.5f, 10.f / 2, 2.5f, true));
+	area3.add(new parabola_horizontal(-1.f, 3.f, -1.f, true));
+	area3.add(new parabola(-0.5f, 0, -0.5f, 3.5f, true));
+	areas.push_back(area3);
+
+	area area4 = area();
+	area4.add(new rectangle(0.5f, 1.f, 4.5f, 2.5f, false));
+	area4.add(new circle(4.f, -1.f, 2.f, false));
+	area4.add(new parabola_horizontal(-1.f, 3.f, -1.f, false));
+	area4.add(new rhomb(1.5, 0.5f, 10.f / 2, 2.5f, true));
+	auto pline1 = new line(0.f, 2.5f, false);
+	auto pline2 = new rectangle(-6.f, -6.f, 0.f, 6.f, false);
+	auto pline3 = new rectangle(4.5f, 0.f, 10.f, 2.5f, false);
+	pline1->ignore = pline2->ignore = pline3->ignore = true;
+	area4.add(pline1);
+	area4.add(pline2);
+	area4.add(pline3);
+	areas.push_back(area4);
+
+	area area5 = area();
+	area5.add(new line(-0.75f, -3.5f, false));
+	area5.add(new parabola(-0.5f, 0, -0.5f, 3.5f, false));
+	area5.add(new parabola_horizontal(-1.f, 3.f, -1.f, false));
+
+	areas.push_back(area5);
+
 	while (window.isOpen())
 	{
 		static bool _moving = false;
