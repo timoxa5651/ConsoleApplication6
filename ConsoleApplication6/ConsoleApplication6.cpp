@@ -43,12 +43,12 @@ public:
 		}
 	}
 
-	virtual pair<double, double> calc(double x) final {
+	virtual pair<double, double> calc(double x)  {
 		x -= this->ox;
 		return { this->a * x * x + this->b * x + this->c, FLT_MAX };
 	}
 
-	virtual bool good(double x, double y) final {
+	virtual bool good(double x, double y)  {
 		if (inside) {
 			return this->calc(x).first <= y;
 		}
@@ -67,11 +67,11 @@ public:
 		this->inside = in;
 	}
 
-	virtual pair<double, double> calc(double x) final {
+	virtual pair<double, double> calc(double x)  {
 		return { -sqrt(this->a * x + c) + this->yd, sqrt(this->a * x + c) + this->yd };
 	}
 
-	virtual bool good(double x, double y) final {
+	virtual bool good(double x, double y)  {
 		auto sol = this->calc(x);
 		bool flag = sol.first <= y && y <= sol.second;
 		if (inside)
@@ -91,11 +91,11 @@ public:
 		this->inside = side;
 	}
 
-	virtual pair<double, double> calc(double x) final {
+	virtual pair<double, double> calc(double x)  {
 		return { this->k * x + this->b, FLT_MAX };
 	}
 
-	virtual bool good(double x, double y) final {
+	virtual bool good(double x, double y)  {
 		if (inside) {
 			return this->calc(x).first <= y;
 		}
@@ -119,7 +119,7 @@ public:
 		return false;
 	}
 
-	virtual pair<double, double> calc(double x) final {
+	virtual pair<double, double> calc(double x)  {
 		double rs = this->cb * (1 - abs(x - this->cx0) / this->ca);
 		if (rs < 0.f) {
 			return { FLT_MAX, FLT_MAX };
@@ -130,7 +130,7 @@ public:
 		return { r1, r2 };
 	}
 
-	virtual bool good(double x, double y) final {
+	virtual bool good(double x, double y)  {
 		auto sol = this->calc(x);
 
 		bool flag = sol.first <= y && y <= sol.second;
@@ -152,12 +152,12 @@ public:
 		this->inside = in;
 	}
 
-	virtual pair<double, double> calc(double x) final {
+	virtual pair<double, double> calc(double x)  {
 		double rs = sqrtl(this->r * this->r - (x - this->cx) * (x - this->cx));
 		return { -rs + this->cy, rs + this->cy };
 	}
 
-	virtual bool good(double x, double y) final {
+	virtual bool good(double x, double y)  {
 		auto sol = this->calc(x);
 		bool flag = sol.first <= y && y <= sol.second;
 		if (inside)
@@ -179,14 +179,14 @@ public:
 		this->inside = in;
 	}
 
-	virtual pair<double, double> calc(double x) final {
+	virtual pair<double, double> calc(double x)  {
 		if (x >= this->x1 && x <= this->x2) {
 			return { min(this->y1, this->y2), max(this->y1, this->y2) };
 		}
 		return { FLT_MAX, FLT_MAX };
 	}
 
-	virtual bool good(double x, double y) final {
+	virtual bool good(double x, double y)  {
 		auto sol = this->calc(x);
 		bool flag = sol.first <= y && y <= sol.second;
 		if (inside)
@@ -201,6 +201,7 @@ public:
 	RenderWindow* window;
 	float size;
 	float current_scale;
+	float target_scale;
 	Vector2f offset;
 	vector<vector<bool>> frame_filled;
 
@@ -209,6 +210,7 @@ public:
 		this->size = window->getSize().x;
 		this->current_scale = size / 6.f;
 		this->current_scale /= 2.f;
+		this->target_scale = this->current_scale;
 	}
 
 	Vector2f wnd_to_plot(Vector2f wnd) {
@@ -276,6 +278,7 @@ public:
 	}
 
 	void begin_frame() {
+		this->current_scale += (this->target_scale - this->current_scale) * min(0.75f, abs(this->current_scale - this->target_scale));
 		this->frame_filled.clear();
 		this->frame_filled.resize(this->size, vector<bool>(this->size, false));
 	}
@@ -432,10 +435,11 @@ int main()
 	area2.add(new circle(4.f, -1.f, 2.f, false));
 	area2.add(new line(-0.75f, -3.5f, true));
 	auto high_iq = new rectangle(-2.f, -4.5f, 2.f, -2.f, false);
-	auto high_iq2 = new rectangle(0.f, 2.f, 1.f, 3.f, false);
-	high_iq2->ignore = high_iq->ignore = true;
+	//auto high_iq2 = new rectangle(0.f, 2.f, 1.f, 3.f, false);
+	//high_iq2->ignore = high_iq->ignore = true;
+	high_iq->ignore = true;
 	area2.add(high_iq);
-	area2.add(high_iq2);
+	//area2.add(high_iq2);
 	areas.push_back(area2);
 
 	area area3 = area();
@@ -479,10 +483,10 @@ int main()
 			else if (event.type == Event::MouseWheelScrolled)
 			{
 				if (event.mouseWheelScroll.delta > 0) {
-					pl->current_scale *= 1.07f;
+					pl->target_scale *= 1.07f;
 				}
 				else {
-					pl->current_scale /= 1.05f;
+					pl->target_scale /= 1.05f;
 				}
 			}
 			else if (event.type == Event::MouseButtonPressed) {

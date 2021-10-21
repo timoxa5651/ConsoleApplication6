@@ -621,7 +621,7 @@ enum { inline_buffer_size = 500 };
  */
 template <typename T, size_t SIZE = inline_buffer_size,
           typename Allocator = std::allocator<T>>
-class basic_memory_buffer final : public detail::buffer<T> {
+class basic_memory_buffer  : public detail::buffer<T> {
  private:
   T store_[SIZE];
 
@@ -635,7 +635,7 @@ class basic_memory_buffer final : public detail::buffer<T> {
   }
 
  protected:
-  void grow(size_t size) final FMT_OVERRIDE;
+  void grow(size_t size)  FMT_OVERRIDE;
 
  public:
   using value_type = T;
