@@ -364,7 +364,7 @@ public:
 			if (sh->ignore) {
 				continue;
 			}
-			for (int x = 0; x < pl->size; ++x) {
+			for (int x = 0; x <= pl->size; ++x) {
 				float px = pl->wnd_to_plot(Vector2f(x, 0)).x;
 				pair<double, double> solutions = sh->calc(px);
 				if (solutions.first < FLT_MAX) {
@@ -396,7 +396,8 @@ public:
 				pl->window->draw(vt_buffer[1].data(), vt_buffer[1].size(), PrimitiveType::LinesStrip);
 			if (vt_buffer[0].size() && vt_buffer[1].size() && sh->connect()) {
 				Vertex vt[2] = { vt_buffer[0][vt_buffer[0].size() - 1], vt_buffer[1][vt_buffer[1].size() - 1] };
-				pl->window->draw(vt, 2, PrimitiveType::LinesStrip);
+				if(vt[0].position.x != pl->size && vt[1].position.x != pl->size)
+					pl->window->draw(vt, 2, PrimitiveType::LinesStrip);
 
 				Vertex vt2[2] = { vt_buffer[0][0], vt_buffer[1][0] };
 				pl->window->draw(vt2, 2, PrimitiveType::LinesStrip);
