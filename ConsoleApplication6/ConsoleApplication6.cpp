@@ -1,20 +1,26 @@
-﻿#define FMT_HEADER_ONLY
+﻿#include <any>
+#define FMT_HEADER_ONLY
 #include "fmt/format.h"
 #include "SFML/Graphics.hpp"
 #include <string>
 #include <iostream>
 #include <cassert>
-#include <optional>
 
 using namespace sf;
 using namespace std;
 
 struct string_internal;
+struct button_collection;
+static Font g_Font;
+static struct editor* g_Editor;
+
 struct editor {
 	Vector2i _cursor;
 	RenderWindow* window;
 	Vector2f window_size;
+	Vector2f panel_pos;
 	Vector2f panel_size;
+	button_collection* actions;
 	vector<string_internal*> data;
 
 	editor(RenderWindow* window);
@@ -28,8 +34,154 @@ struct editor {
 	void key_down(Event evnt);
 };
 
-static Font g_Font;
-static editor* g_Editor;
+enum class input_type {
+	text_field,
+	int_field
+};
+struct input {
+	string name;
+	input_type type;
+	String value;
+
+	input(string nm, input_type tp) {
+		this->name = nm;
+		this->type = tp;
+		this->value = String();
+	}
+
+	bool can_enter(Uint32 chr) {
+		if (type == input_type::int_field && (chr < L'0' || chr > L'9')) {
+			return false;
+		}
+		return true;
+	}
+};
+struct button {
+	string name;
+	void(*call_fn)(editor*, vector<any>);
+	vector<input> inputs;
+	int input_active;
+
+	button() {
+		this->input_active = 0;
+		this->call_fn = NULL;
+	}
+
+	button(string nme, void(*_call_fn)(editor*, vector<any>), vector<input> inp) : button() {
+		this->name = nme;
+		this->call_fn = _call_fn;
+		this->inputs = inp;
+	}
+
+	void draw(editor* ed, Vector2f pos) {
+		Text text = Text();
+		text.setFont(g_Font);
+		text.setCharacterSize(14);
+		text.setFillColor(Color::Black);
+		text.setString(String(name));
+		text.setPosition(pos);
+		ed->window->draw(text);
+	}
+
+	void draw_active(editor* ed, Vector2f pos, Vector2f size) {
+		RectangleShape rectangle(Vector2f(size.x, size.y));
+		rectangle.move(pos.x, pos.y);
+		rectangle.setOutlineColor(Color(0, 0, 0, 255));
+		rectangle.setOutlineThickness(1.2f);
+		rectangle.setFillColor(Color(255 * 0.8, 255 * 0.8, 255 * 0.8, 255 * 0.8));
+		ed->window->draw(rectangle);
+
+		pos.y += 30;
+		for (int idx = 0; idx < this->inputs.size(); ++idx) {
+			input& inp = this->inputs[idx];
+			
+			sf::Text text;
+			text.setFont(g_Font);
+			text.setCharacterSize(14);
+			text.setFillColor(Color::Black);
+			text.setString(inp.name);
+			FloatRect bRect = text.getLocalBounds();
+			text.setPosition(pos.x + size.x / 2 - (int)bRect.width / 2, pos.y + idx * 45 - 20);
+			ed->window->draw(text);
+
+			RectangleShape rect(Vector2f(size.x - 20, 20));
+			rect.setPosition(pos.x + 10, pos.y + idx * 45);
+			rect.setOutlineColor(Color(0, 0, 0, 255));
+			rect.setOutlineThickness(1.f);
+			ed->window->draw(rect);
+
+			text.setString(inp.value);
+			bRect = text.getLocalBounds();
+			text.setPosition(pos.x + 10 + (size.x - 20) / 2 - (int)bRect.width / 2, pos.y + idx * 45);
+			ed->window->draw(text);
+
+			if (idx == this->input_active) {
+				float bhei = text.getCharacterSize() + 3;
+				float bx = text.findCharacterPos(text.getString().getSize()).x - text.findCharacterPos(0).x + 2;
+
+				Vertex vertices[2];
+				vertices[0] = Vertex(pos + Vector2f(10 + (size.x - 20) / 2 - (int)bRect.width / 2 + bx, idx * 45 + 2));
+				vertices[1] = Vertex(pos + Vector2f(10 + (size.x - 20) / 2 - (int)bRect.width / 2 + bx, idx * 45 + bhei));
+				vertices[1].color = vertices[0].color = Color(0, 0, 0, 255);
+				ed->window->draw(vertices, 2, Lines);
+			}
+		}
+	}
+
+	bool text_entered(editor* ed, Event evnt) {
+		if (input_active < 0) {
+			input_active = 0;
+		}
+
+		if (input_active >= 0) {
+			input& inp = this->inputs[input_active];
+
+			if (evnt.text.unicode == 13) { // enter
+				if (this->input_active + 1 == this->inputs.size()) {
+					vector<any> args;
+					for (input& in : this->inputs) {
+						auto ps = in.value.toUtf16();
+						wstring wstr = wstring(ps.begin(), ps.end());
+
+						if (in.type == input_type::int_field) {
+							args.push_back(stoi(wstr));
+						}
+						else {
+							args.push_back(wstr);
+						}
+						in.value = "";
+					}
+					this->call_fn(ed, args);
+					this->input_active = 0;
+					return true;
+				}
+				else {
+					this->input_active += 1;
+				}
+			}
+			else if (evnt.text.unicode == 8) { // backspace
+				if (inp.value.getSize()) {
+					inp.value = inp.value.substring(0, inp.value.getSize() - 1);
+				}
+			}
+			else if (inp.can_enter(evnt.text.unicode)) {
+				inp.value += evnt.text.unicode;
+			}
+		}
+		return false;
+	}
+};
+struct button_collection {
+	vector<button> buttons;
+	int active_button_popup;
+
+	void init();
+	void draw(editor* ed, Vector2f pos, Vector2f size);
+	void on_click(editor* ed, Event event);
+	void text_entered(editor* ed, Event evnt);
+	bool blocks_input();
+};
+
 
 struct string_internal {
 	sf::Text text;
@@ -69,6 +221,10 @@ struct string_internal {
 		if (this->length() - this->cursor > 0) {
 			auto bString = this->text.getString();
 			this->text.setString(bString.substring(0, this->cursor) + bString.substring(this->cursor + 1));
+		}
+		else if (this->next_string) {
+			this->text.setString(this->text.getString() + this->next_string->text.getString());
+			g_Editor->remove_string(this->next_string->line);
 		}
 	}
 
@@ -129,23 +285,27 @@ editor::editor(RenderWindow* window) {
 	this->window = window;
 	this->window_size.x = window->getSize().x;
 	this->window_size.y = window->getSize().y;
-	this->data.reserve(100);
+	this->panel_size = Vector2f(200, this->window_size.y);
+	this->data.reserve(128);
 	this->data.push_back(new string_internal());
 	this->_cursor = Vector2i(0, 0);
+	this->actions = new button_collection();
+	this->actions->init();
+	this->panel_pos = Vector2f(this->window_size.x - this->panel_size.x, 0);
+	this->window_size.x -= this->panel_size.x;
 }
 
 Vector2i editor::get_cursor() {
 	return this->_cursor;
 }
 void editor::set_cursor(Vector2i new_cursor, bool alloc_new) {
-	if (new_cursor.x >= this->data.size() && !alloc_new)
-		return;
 	new_cursor.x = max(new_cursor.x, 0);
 	new_cursor.y = max(new_cursor.y, 0);
 
-	while (new_cursor.x >= this->data.size()) {
+	while (alloc_new && new_cursor.x >= this->data.size()) {
 		this->insert_string(new string_internal(), this->data.size());
 	}
+	new_cursor.x = min(new_cursor.x, (int)this->data.size() - 1);
 	new_cursor.y = min(new_cursor.y, this->data[new_cursor.x]->length());
 	this->_cursor = new_cursor;
 }
@@ -165,26 +325,42 @@ void editor::frame() {
 			vertices[0] = Vertex(Vector2f(bx, by));
 			vertices[1] = Vertex(Vector2f(bx, by + bhei));
 			vertices[1].color = vertices[0].color = Color(0, 0, 0, 255);
-			window->draw(vertices, 2, Lines);
+			this->window->draw(vertices, 2, Lines);
 		}
 	}
+
+	Vertex vertices[2];
+	vertices[0] = Vertex(Vector2f(this->panel_pos.x, 0));
+	vertices[1] = Vertex(Vector2f(this->panel_pos.x, this->panel_size.y));
+	vertices[1].color = vertices[0].color = Color(0, 0, 0, 255);
+	this->window->draw(vertices, 2, Lines);
+	this->actions->draw(this, this->panel_pos, this->panel_size);
 }
 
 void editor::insert_string(string_internal* new_string, int position) {
+	if (position < 0 || position > this->data.size()) {
+		return;
+	}
+
 	this->data.insert(this->data.begin() + position, new_string);
-	for (int idx = max(0, position - 1); idx < this->data.size(); ++idx) {
+	for (size_t idx = max(0, position - 1); idx < this->data.size(); ++idx) {
 		this->data[idx]->line = idx;
 		if (idx + 1 < this->data.size()) {
 			this->data[idx]->next_string = this->data[idx + 1];
 		}
 		else {
 			this->data[idx]->next_string = nullptr;
-		}	
+		}
 	}
+	this->set_cursor(this->get_cursor());
 }
+
 void editor::remove_string(int position) {
+	if (position < 0 || position >= this->data.size() || this->data.size() == 1) {
+		return;
+	}
 	this->data.erase(this->data.begin() + position);
-	for (int idx = max(0, position - 1); idx < this->data.size(); ++idx) {
+	for (size_t idx = max(0, position - 1); idx < this->data.size(); ++idx) {
 		this->data[idx]->line = idx;
 
 		if (idx + 1 < this->data.size()) {
@@ -194,12 +370,16 @@ void editor::remove_string(int position) {
 			this->data[idx]->next_string = nullptr;
 		}
 	}
+	this->set_cursor(this->get_cursor(), false);
 }
 
 void editor::text_entered(Event evnt) {
+	if (this->actions->blocks_input()) {
+		this->actions->text_entered(this, evnt);
+		return;
+	}
 	Vector2i cursor = this->get_cursor();
 	string_internal* current_string = this->data[cursor.x];
-	cursor.y = min(cursor.y, current_string->length());
 	current_string->set_cursor(cursor.y);
 
 	unsigned int key = evnt.text.unicode;
@@ -221,14 +401,13 @@ void editor::text_entered(Event evnt) {
 		}
 		else {
 			if (cursor.x > 0) {
-				int tCursor = cursor.y;
+				int tCursor = this->data[cursor.x - 1]->length();
 				if (current_string->length()) {
-					tCursor = this->data[cursor.x - 1]->length();
 					this->data[cursor.x - 1]->add(current_string->text.getString());
-					this->data[cursor.x - 1]->set_cursor(tCursor);
 				}
-				this->remove_string(cursor.x);
 				this->set_cursor(Vector2i(cursor.x - 1, tCursor));
+				this->remove_string(cursor.x);
+				this->data[this->get_cursor().x]->cursor = this->get_cursor().y;
 			}
 		}
 	}
@@ -241,6 +420,8 @@ void editor::text_entered(Event evnt) {
 }
 
 void editor::key_down(Event evnt) {
+	if (this->actions->blocks_input())
+		return;
 	Vector2i cursor = this->get_cursor();
 	Vector2i next_cursor = cursor;
 	string_internal* current_string = this->data[cursor.x];
@@ -273,15 +454,111 @@ void editor::key_down(Event evnt) {
 }
 
 
+void button_collection::init() {
+	this->buttons.push_back(button(
+		"Paste 1 line",
+		[](editor* instance, vector<any> params) {
+			string_internal* str = new string_internal();
+			str->set(any_cast<wstring>(params[0]));
+			int index = min(max(0, any_cast<int>(params[1])), (int)instance->data.size());
+			instance->insert_string(str, index);
+			instance->set_cursor(Vector2i(index, str->cursor));
+		},
+		{ {"Text to paste", input_type::text_field}, {"After Nth line", input_type::int_field} }
+	));
+
+	this->buttons.push_back(button(
+		"Paste N lines",
+		[](editor* instance, vector<any> params) {
+			string_internal* str = new string_internal();
+			str->set(any_cast<wstring>(params[0]));
+			int index = min(max(0, any_cast<int>(params[1])), (int)instance->data.size());
+			int cnt = any_cast<int>(params[2]);
+			for (int i = 0; i < cnt; ++i) {
+				instance->insert_string(str, index);
+				instance->set_cursor(Vector2i(index, str->cursor));
+			}
+		},
+		{ {"Text to paste", input_type::text_field}, {"After Nth line", input_type::int_field}, {"Amount", input_type::int_field} }
+	));
+
+	this->buttons.push_back(button(
+		"Delete Nth line",
+		[](editor* instance, vector<any> params) {
+			instance->remove_string(any_cast<int>(params[0]) - 1);
+		},
+		{ {"Nth line", input_type::int_field} }
+		));
+
+	this->active_button_popup = -1;
+}
+
+void button_collection::draw(editor* ed, Vector2f pos, Vector2f size) {
+	constexpr float dMove = 20;
+	Vector2i mouse = Mouse::getPosition(*ed->window);
+
+	for (int i = 0; i < this->buttons.size(); ++i) {
+		Vertex vertices[2];
+		vertices[0] = Vertex(pos + Vector2f(0, (i + 1) * dMove));
+		vertices[1] = Vertex(pos + Vector2f(size.x, (i + 1) * dMove));
+		vertices[1].color = vertices[0].color = Color(0, 0, 0, 255);
+		ed->window->draw(vertices, 2, Lines);
+
+		if (this->active_button_popup < 0 && mouse.x >= pos.x && mouse.x <= pos.x + size.x && mouse.y >= pos.y + i * dMove && mouse.y <= pos.y + (i + 1) * dMove) { // #NoRect
+			Vertex vertices[4];
+			vertices[0] = Vertex(pos + Vector2f(0, i * dMove));
+			vertices[1] = Vertex(pos + Vector2f(size.x, i * dMove));
+			vertices[2] = Vertex(pos + Vector2f(size.x, (i + 1) * dMove));
+			vertices[3] = Vertex(pos + Vector2f(0, (i + 1) * dMove));
+			vertices[3].color = vertices[2].color = vertices[1].color = vertices[0].color = Color(0, 0, 0, 255 * 0.2);
+			ed->window->draw(vertices, 4, Quads);
+		}
+
+		this->buttons[i].draw(ed, pos + Vector2f(10, i * dMove));
+	}
+
+	if (this->active_button_popup >= 0) {
+		Vector2f fCenter = Vector2f(ed->window->getSize().x / 2, ed->window->getSize().y / 2);
+		const Vector2f window_size = Vector2f(300, 300);
+		this->buttons[this->active_button_popup].draw_active(ed, fCenter - Vector2f(window_size.x / 2, window_size.y / 2), window_size);
+	}
+}
+
+void button_collection::on_click(editor* ed, Event event) {
+	constexpr float dMove = 20;
+	if (this->active_button_popup >= 0) {
+		return;
+	}
+	Vector2f pos = ed->panel_pos;
+	Vector2f size = ed->panel_size;
+	Vector2i mouse = Mouse::getPosition(*ed->window);
+
+	for (int i = 0; i < this->buttons.size(); ++i) {
+		if (mouse.x >= pos.x && mouse.x <= pos.x + size.x && mouse.y >= pos.y + i * dMove && mouse.y <= pos.y + (i + 1) * dMove) { // #NoRect
+			this->active_button_popup = i;
+			break;
+		}
+	}
+}
+
+void button_collection::text_entered(editor* ed, Event evnt) {
+	if (this->active_button_popup >= 0) {
+		if (this->buttons[this->active_button_popup].text_entered(ed, evnt)) {
+			this->active_button_popup = -1;
+		}
+	}
+}
+
+bool button_collection::blocks_input() {
+	return this->active_button_popup >= 0;
+}
 
 int main()
 {
+	g_Font.loadFromFile("arial.ttf");
 	RenderWindow window(VideoMode(800, 600), "123");
 
-	g_Font.loadFromFile("arial.ttf");
-
 	g_Editor = new editor(&window);
-
 	while (window.isOpen())
 	{
 		Event event;
@@ -290,13 +567,9 @@ int main()
 			if (event.type == Event::Closed) {
 				window.close();
 			}
-			else if (event.type == Event::MouseWheelScrolled)
-			{
-
-			}
 			else if (event.type == Event::MouseButtonPressed) {
 				if (event.mouseButton.button == 0) {
-
+					g_Editor->actions->on_click(g_Editor, event);
 				}
 			}
 			else if (event.type == Event::MouseButtonReleased) {
