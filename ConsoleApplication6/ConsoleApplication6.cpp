@@ -36,7 +36,8 @@ struct editor {
 
 enum class input_type {
 	text_field,
-	int_field
+	int_field,
+	char_field
 };
 struct input {
 	string name;
@@ -51,6 +52,9 @@ struct input {
 
 	bool can_enter(Uint32 chr) {
 		if (type == input_type::int_field && (chr < L'0' || chr > L'9')) {
+			return false;
+		}
+		if (type == input_type::char_field && this->value.getSize() > 0) {
 			return false;
 		}
 		return true;
@@ -73,13 +77,14 @@ struct button {
 		this->inputs = inp;
 	}
 
-	void draw(editor* ed, Vector2f pos) {
+	void draw(editor* ed, Vector2f pos, Vector2f size) {
 		Text text = Text();
 		text.setFont(g_Font);
-		text.setCharacterSize(14);
+		text.setCharacterSize(20);
 		text.setFillColor(Color::Black);
 		text.setString(String(name));
-		text.setPosition(pos);
+		FloatRect bRect = text.getLocalBounds();
+		text.setPosition(pos.x + size.x / 2 - (int)bRect.width / 2, pos.y + size.y / 2 - (int)bRect.height / 2);
 		ed->window->draw(text);
 	}
 
@@ -94,7 +99,7 @@ struct button {
 		pos.y += 30;
 		for (int idx = 0; idx < this->inputs.size(); ++idx) {
 			input& inp = this->inputs[idx];
-			
+
 			sf::Text text;
 			text.setFont(g_Font);
 			text.setCharacterSize(14);
@@ -144,7 +149,7 @@ struct button {
 						wstring wstr = wstring(ps.begin(), ps.end());
 
 						if (in.type == input_type::int_field) {
-							args.push_back(stoi(wstr));
+							args.push_back(wstr.size() ? stoi(wstr) : 0);
 						}
 						else {
 							args.push_back(wstr);
@@ -275,6 +280,22 @@ struct string_internal {
 		return Vector2f(rect.width, rect.height);
 	}
 
+	void replace(String prev, String next) {
+		if (!prev.getSize())
+			return;
+		String cur = this->text.getString();
+		do {
+			size_t idx = cur.find(prev);
+			if (idx == string::npos) {
+				break;
+			}
+			cur.erase(idx, prev.getSize());
+			cur.insert(idx, next);
+		} while (cur.getSize());
+		this->text.setString(cur);
+		this->set_cursor(this->cursor);
+	}
+
 	void draw(RenderWindow* window, Vector2f position) {
 		this->text.setPosition(position + Vector2f(0, (text.getCharacterSize() + 5) * this->line));
 		window->draw(this->text);
@@ -285,7 +306,7 @@ editor::editor(RenderWindow* window) {
 	this->window = window;
 	this->window_size.x = window->getSize().x;
 	this->window_size.y = window->getSize().y;
-	this->panel_size = Vector2f(200, this->window_size.y);
+	this->panel_size = Vector2f(150, this->window_size.y);
 	this->data.reserve(128);
 	this->data.push_back(new string_internal());
 	this->_cursor = Vector2i(0, 0);
@@ -456,7 +477,7 @@ void editor::key_down(Event evnt) {
 
 void button_collection::init() {
 	this->buttons.push_back(button(
-		"Paste 1 line",
+		"Paste: 1 line",
 		[](editor* instance, vector<any> params) {
 			string_internal* str = new string_internal();
 			str->set(any_cast<wstring>(params[0]));
@@ -464,11 +485,11 @@ void button_collection::init() {
 			instance->insert_string(str, index);
 			instance->set_cursor(Vector2i(index, str->cursor));
 		},
-		{ {"Text to paste", input_type::text_field}, {"After Nth line", input_type::int_field} }
-	));
+		{ {"Text", input_type::text_field}, {"After Nth line", input_type::int_field} }
+		));
 
 	this->buttons.push_back(button(
-		"Paste N lines",
+		"Paste: N lines",
 		[](editor* instance, vector<any> params) {
 			string_internal* str = new string_internal();
 			str->set(any_cast<wstring>(params[0]));
@@ -479,22 +500,71 @@ void button_collection::init() {
 				instance->set_cursor(Vector2i(index, str->cursor));
 			}
 		},
-		{ {"Text to paste", input_type::text_field}, {"After Nth line", input_type::int_field}, {"Amount", input_type::int_field} }
-	));
+		{ {"Text", input_type::text_field}, {"After Nth line", input_type::int_field}, {"Amount", input_type::int_field} }
+		));
 
 	this->buttons.push_back(button(
-		"Delete Nth line",
+		"Delete: 1 line",
 		[](editor* instance, vector<any> params) {
 			instance->remove_string(any_cast<int>(params[0]) - 1);
 		},
 		{ {"Nth line", input_type::int_field} }
-		));
+	));
+
+	this->buttons.push_back(button(
+		"Insert: 1 line",
+		[](editor* instance, vector<any> params) {
+			int index = min(max(0, any_cast<int>(params[1])), (int)instance->data.size());
+			int idx = any_cast<int>(params[2]);
+
+			instance->data[index]->cursor = idx;
+			instance->data[index]->add(any_cast<wstring>(params[0]));
+			instance->set_cursor(Vector2i(index, instance->data[index]->cursor));
+		},
+		{ {"Text", input_type::text_field}, {"In Nth line", input_type::int_field}, {"After Mth position", input_type::int_field} }
+	));
+
+	this->buttons.push_back(button(
+		"Replace: 1 char",
+		[](editor* instance, vector<any> params) {
+			int index = min(max(1, any_cast<int>(params[0])), (int)instance->data.size()) - 1;
+			int idx = max(min(instance->data[index]->length(), any_cast<int>(params[1])), 1) - 1;
+
+			instance->data[index]->set_cursor(idx);
+			instance->data[index]->backspace_back();
+			instance->data[index]->add(any_cast<wstring>(params[2]));
+			instance->set_cursor(Vector2i(index, instance->data[index]->cursor));
+		},
+		{ {"In Nth line", input_type::int_field}, {"In Mth position", input_type::int_field}, {"New character", input_type::char_field} }
+	));
+
+	this->buttons.push_back(button(
+		"Replace: string",
+		[](editor* instance, vector<any> params) {
+			int p1 = any_cast<int>(params[2]);
+			int p2 = any_cast<int>(params[3]);
+			wstring p3 = any_cast<wstring>(params[0]);
+			wstring p4 = any_cast<wstring>(params[1]);
+
+			if (p1 <= 0 || p2 <= 0 || p1 > instance->data.size() || p2 > instance->data.size()) {
+				p1 = 1;
+				p2 = instance->data.size();
+			}
+			int index = min(max(1, p1), (int)instance->data.size()) - 1;
+			int index2 = min(max(1, p2), (int)instance->data.size()) - 1;
+
+			for (int idx = index; idx <= index2; ++idx) {
+				instance->data[idx]->replace(p3, p4);
+			}
+		},
+		{ {"Old string", input_type::text_field}, {"New string", input_type::text_field}, {"From Nth line", input_type::int_field}, {"To Mth line", input_type::int_field} }
+	));
 
 	this->active_button_popup = -1;
 }
 
 void button_collection::draw(editor* ed, Vector2f pos, Vector2f size) {
-	constexpr float dMove = 20;
+	float dMove = size.y / this->buttons.size();
 	Vector2i mouse = Mouse::getPosition(*ed->window);
 
 	for (int i = 0; i < this->buttons.size(); ++i) {
@@ -514,7 +584,7 @@ void button_collection::draw(editor* ed, Vector2f pos, Vector2f size) {
 			ed->window->draw(vertices, 4, Quads);
 		}
 
-		this->buttons[i].draw(ed, pos + Vector2f(10, i * dMove));
+		this->buttons[i].draw(ed, pos + Vector2f(0, i * dMove), Vector2f(size.x, dMove));
 	}
 
 	if (this->active_button_popup >= 0) {
@@ -525,7 +595,7 @@ void button_collection::draw(editor* ed, Vector2f pos, Vector2f size) {
 }
 
 void button_collection::on_click(editor* ed, Event event) {
-	constexpr float dMove = 20;
+	float dMove = ed->panel_size.y / this->buttons.size();
 	if (this->active_button_popup >= 0) {
 		return;
 	}
@@ -556,7 +626,7 @@ bool button_collection::blocks_input() {
 int main()
 {
 	g_Font.loadFromFile("arial.ttf");
-	RenderWindow window(VideoMode(800, 600), "123");
+	RenderWindow window(VideoMode(800, 900), "123");
 
 	g_Editor = new editor(&window);
 	while (window.isOpen())
