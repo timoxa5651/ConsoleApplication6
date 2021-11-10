@@ -238,7 +238,7 @@ struct string_internal {
 		this->text.setString(bString.substring(0, this->cursor) + chr + bString.substring(this->cursor));
 		this->cursor += chr.getSize();
 
-		if (this->get_size().x > g_Editor->window_size.x) {
+		while (this->get_size().x > g_Editor->window_size.x) {
 			bool is_last_char = this->cursor == this->length();
 			int prev_cursor = this->cursor;
 
@@ -377,10 +377,16 @@ void editor::insert_string(string_internal* new_string, int position) {
 }
 
 void editor::remove_string(int position) {
-	if (position < 0 || position >= this->data.size() || this->data.size() == 1) {
+	if (position < 0 || position >= this->data.size()) {
 		return;
 	}
-	this->data.erase(this->data.begin() + position);
+	if (this->data.size() == 1) {
+		this->data[0]->set("");
+	}
+	else {
+		this->data.erase(this->data.begin() + position);
+	}
+	
 	for (size_t idx = max(0, position - 1); idx < this->data.size(); ++idx) {
 		this->data[idx]->line = idx;
 
@@ -491,14 +497,18 @@ void button_collection::init() {
 	this->buttons.push_back(button(
 		"Paste: N lines",
 		[](editor* instance, vector<any> params) {
-			string_internal* str = new string_internal();
-			str->set(any_cast<wstring>(params[0]));
 			int index = min(max(0, any_cast<int>(params[1])), (int)instance->data.size());
 			int cnt = any_cast<int>(params[2]);
-			for (int i = 0; i < cnt; ++i) {
-				instance->insert_string(str, index);
-				instance->set_cursor(Vector2i(index, str->cursor));
+			if (cnt < 1) {
+				return;
 			}
+			wstring wstr = any_cast<wstring>(params[0]);
+			for (int i = 0; i < cnt; ++i) {
+				string_internal* str = new string_internal();
+				str->set(wstr);
+				instance->insert_string(str, index);
+			}
+			instance->set_cursor(Vector2i(index + cnt - 1, wstr.size()));
 		},
 		{ {"Text", input_type::text_field}, {"After Nth line", input_type::int_field}, {"Amount", input_type::int_field} }
 		));
@@ -506,7 +516,9 @@ void button_collection::init() {
 	this->buttons.push_back(button(
 		"Delete: 1 line",
 		[](editor* instance, vector<any> params) {
+			Vector2i cursor = instance->get_cursor();
 			instance->remove_string(any_cast<int>(params[0]) - 1);
+			instance->set_cursor(cursor, false);
 		},
 		{ {"Nth line", input_type::int_field} }
 	));
@@ -514,10 +526,10 @@ void button_collection::init() {
 	this->buttons.push_back(button(
 		"Insert: 1 line",
 		[](editor* instance, vector<any> params) {
-			int index = min(max(0, any_cast<int>(params[1])), (int)instance->data.size());
+			int index = min(max(1, any_cast<int>(params[1])), (int)instance->data.size()) - 1;
 			int idx = any_cast<int>(params[2]);
 
-			instance->data[index]->cursor = idx;
+			instance->data[index]->set_cursor(idx);
 			instance->data[index]->add(any_cast<wstring>(params[0]));
 			instance->set_cursor(Vector2i(index, instance->data[index]->cursor));
 		},
@@ -574,7 +586,7 @@ void button_collection::draw(editor* ed, Vector2f pos, Vector2f size) {
 		vertices[1].color = vertices[0].color = Color(0, 0, 0, 255);
 		ed->window->draw(vertices, 2, Lines);
 
-		if (this->active_button_popup < 0 && mouse.x >= pos.x && mouse.x <= pos.x + size.x && mouse.y >= pos.y + i * dMove && mouse.y <= pos.y + (i + 1) * dMove) { // #NoRect
+		if (this->active_button_popup < 0 && mouse.x > pos.x && mouse.x < pos.x + size.x && mouse.y > pos.y + i * dMove && mouse.y < pos.y + (i + 1) * dMove) { // #NoRect
 			Vertex vertices[4];
 			vertices[0] = Vertex(pos + Vector2f(0, i * dMove));
 			vertices[1] = Vertex(pos + Vector2f(size.x, i * dMove));
