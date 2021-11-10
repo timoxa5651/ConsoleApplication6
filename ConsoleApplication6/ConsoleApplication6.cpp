@@ -296,6 +296,133 @@ struct string_internal {
 		this->set_cursor(this->cursor);
 	}
 
+	void do_algo_zeros() {
+		String str = this->text.getString();
+		int num_len = 0, num_zeros = 0;
+		for (int idx = 0; idx < str.getSize(); ++idx) {
+			Uint32 pch = str[idx];
+			if (pch >= L'0' && pch <= L'9') {
+				if (!num_len && pch == L'0') {
+					num_zeros += 1;
+				}
+				else {
+					num_len += 1;
+				}
+			}
+			else if (num_len > 0 || num_zeros > 0) {
+				if (num_len == 0) {
+					num_zeros -= 1;
+				}
+				if (num_zeros > 0) {
+					str.erase(idx - num_len - num_zeros, num_zeros);
+					idx -= num_zeros;
+				}
+				num_len = num_zeros = 0;
+			}
+		}
+
+		if (num_len > 0 || num_zeros > 0) {
+			if (num_len == 0) {
+				num_zeros -= 1;
+			}
+			if (num_zeros > 0) {
+				str.erase(str.getSize() - num_len - num_zeros, num_zeros);
+			}
+		}
+		this->text.setString(str);
+	}
+
+	void do_algo_num_repl() {
+		String str = this->text.getString();
+		int num_len = 0;
+		for (int idx = 0; idx < str.getSize(); ++idx) {
+			Uint32 pch = str[idx];
+			if (pch >= L'0' && pch <= L'9') {
+				num_len += 1;
+			}
+			else if (num_len > 0) {
+				if (num_len >= 2) {
+					bool flag = true;
+					int prev = -1;
+					for (int jdx = idx - num_len; jdx < idx; ++jdx) {
+						int nxt = str[jdx] - L'0';
+						if (nxt <= prev) {
+							flag = false;
+							break;
+						}
+						prev = nxt;
+					}
+					if (!flag) {
+						str.erase(idx - num_len, num_len);
+						idx -= num_len;
+					}
+				}
+				else {
+					str.erase(idx - num_len, num_len);
+					idx -= num_len;
+				}
+				num_len = 0;
+			}
+		}
+
+		if (num_len > 0) {
+			int idx = str.getSize();
+			if (num_len >= 2) {
+				bool flag = true;
+				int prev = -1;
+				for (int jdx = idx - num_len; jdx < idx; ++jdx) {
+					int nxt = str[jdx] - L'0';
+					if (nxt <= prev) {
+						flag = false;
+						break;
+					}
+					prev = nxt;
+				}
+				if (!flag) {
+					str.erase(idx - num_len, num_len);
+					idx -= num_len;
+				}
+			}
+			else {
+				str.erase(idx - num_len, num_len);
+				idx -= num_len;
+			}
+			num_len = 0;
+		}
+		this->text.setString(str);
+	}
+
+	void do_algo_repl(int n) {
+		String str = this->text.getString();
+		int num_len = 0;
+		for (int idx = 0; idx < str.getSize(); ++idx) {
+			Uint32 pch = str[idx];
+			if (pch == L'*') {
+				num_len += 1;
+			}
+			else {
+				if (num_len > 1) {
+					str.erase(idx - num_len, num_len);
+					string new_str = "";
+					for (int i = 0; i < num_len / 2; ++i)
+						new_str += "+";
+					str.insert(idx - num_len, new_str);
+					idx -= num_len;
+				}
+				num_len = 0;
+			}
+		}
+		if (num_len > 1) {
+			int idx = str.getSize();
+			str.erase(idx - num_len, num_len);
+			string new_str = "";
+			for (int i = 0; i < num_len / 2; ++i)
+				new_str += "+";
+			str.insert(idx - num_len, new_str);
+		}
+		this->text.setString(str);
+	}
+
 	void draw(RenderWindow* window, Vector2f position) {
 		this->text.setPosition(position + Vector2f(0, (text.getCharacterSize() + 5) * this->line));
 		window->draw(this->text);
@@ -487,12 +614,12 @@ void button_collection::init() {
 		[](editor* instance, vector<any> params) {
 			string_internal* str = new string_internal();
 			str->set(any_cast<wstring>(params[0]));
-			int index = min(max(0, any_cast<int>(params[1])), (int)instance->data.size());
+			int index = min(max(0, any_cast<int>(params[1])), static_cast<int>(instance->data.size()));
 			instance->insert_string(str, index);
 			instance->set_cursor(Vector2i(index, str->cursor));
 		},
 		{ {"Text", input_type::text_field}, {"After Nth line", input_type::int_field} }
-		));
+	));
 
 	this->buttons.push_back(button(
 		"Paste: N lines",
@@ -511,7 +638,7 @@ void button_collection::init() {
 			instance->set_cursor(Vector2i(index + cnt - 1, wstr.size()));
 		},
 		{ {"Text", input_type::text_field}, {"After Nth line", input_type::int_field}, {"Amount", input_type::int_field} }
-		));
+	));
 
 	this->buttons.push_back(button(
 		"Delete: 1 line",
@@ -570,6 +697,80 @@ void button_collection::init() {
 			}
 		},
 		{ {"Old string", input_type::text_field}, {"New string", input_type::text_field}, {"From Nth line", input_type::int_field}, {"To Mth line", input_type::int_field} }
+	));
+
+	this->buttons.push_back(button(
+		"Algo: 0s",
+		[](editor* instance, vector<any> params) {
+			int p1 = any_cast<int>(params[0]);
+			int p2 = any_cast<int>(params[1]);
+
+			if (p1 <= 0 || p2 <= 0 || p1 > instance->data.size() || p2 > instance->data.size()) {
+				p1 = 1;
+				p2 = instance->data.size();
+			}
+			int index = min(max(1, p1), (int)instance->data.size()) - 1;
+			int index2 = min(max(1, p2), (int)instance->data.size()) - 1;
+
+			for (int idx = index; idx <= index2; ++idx) {
+				instance->data[idx]->do_algo_zeros();
+			}
+		},
+		{ {"From Nth line", input_type::int_field}, {"To Mth line", input_type::int_field} }
+	));
+
+	this->buttons.push_back(button(
+		"Algo: 2",
+		[](editor* instance, vector<any> params) {
+			int p1 = any_cast<int>(params[0]);
+			int p2 = any_cast<int>(params[1]);
+
+			if (p1 <= 0 || p2 <= 0 || p1 > instance->data.size() || p2 > instance->data.size()) {
+				p1 = 1;
+				p2 = instance->data.size();
+			}
+			int index = min(max(1, p1), (int)instance->data.size()) - 1;
+			int index2 = min(max(1, p2), (int)instance->data.size()) - 1;
+
+			for (int idx = index; idx <= index2; ++idx) {
+				instance->data[idx]->do_algo_num_repl();
+			}
+		},
+		{ {"From Nth line", input_type::int_field}, {"To Mth line", input_type::int_field} }
+	));
+
+	this->buttons.push_back(button(
+		"Algo: ** -> +",
+		[](editor* instance, vector<any> params) {
+			int p1 = any_cast<int>(params[0]);
+			int p2 = any_cast<int>(params[1]);
+			int n = any_cast<int>(params[2]);
+
+			if (p1 <= 0 || p2 <= 0 || p1 > instance->data.size() || p2 > instance->data.size()) {
+				p1 = 1;
+				p2 = instance->data.size();
+			}
+			int index = min(max(1, p1), (int)instance->data.size()) - 1;
+			int index2 = min(max(1, p2), (int)instance->data.size()) - 1;
+
+			string replace = "";
+			string replace_to = "";
+			if (n > 0) {
+				for (int i = 0; i < n; i++)
+					replace += "*";
+				for (int i = 0; i < n / 2; i++)
+					replace_to += "+";
+			}
+			for (int idx = index; idx <= index2; ++idx) {
+				if (n <= 0) {
+					instance->data[idx]->do_algo_repl(n);
+				}
+				else {
+					instance->data[idx]->replace(replace, replace_to);
+				}
+			}
+		},
+		{ {"From Kth line", input_type::int_field}, {"To Mth line", input_type::int_field}, {"N(0 = all)", input_type::int_field} }
 	));
 
 	this->active_button_popup = -1;
