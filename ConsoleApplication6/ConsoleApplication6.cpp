@@ -10,17 +10,19 @@ using namespace sf;
 using namespace std;
 
 struct string_internal;
-struct button_collection;
+class button_collection;
+class editor;
 static Font g_Font;
-static struct editor* g_Editor;
+static editor* g_Editor;
 
-struct editor {
+class editor {
 	Vector2i _cursor;
+	button_collection* actions;
+public:
 	RenderWindow* window;
 	Vector2f window_size;
 	Vector2f panel_pos;
 	Vector2f panel_size;
-	button_collection* actions;
 	vector<string_internal*> data;
 
 	editor(RenderWindow* window);
@@ -32,6 +34,7 @@ struct editor {
 	void remove_string(int position);
 	void text_entered(Event evnt);
 	void key_down(Event evnt);
+	void on_click(Event evnt);
 };
 
 enum class input_type {
@@ -55,7 +58,8 @@ struct input {
 			return false;
 		}
 		if (type == input_type::char_field && this->value.getSize() > 0) {
-			return false;
+			this->value = "";
+			return true;
 		}
 		return true;
 	}
@@ -100,7 +104,7 @@ struct button {
 		for (int idx = 0; idx < this->inputs.size(); ++idx) {
 			input& inp = this->inputs[idx];
 
-			sf::Text text;
+			Text text;
 			text.setFont(g_Font);
 			text.setCharacterSize(14);
 			text.setFillColor(Color::Black);
@@ -129,6 +133,20 @@ struct button {
 				vertices[1] = Vertex(pos + Vector2f(10 + (size.x - 20) / 2 - (int)bRect.width / 2 + bx, idx * 45 + bhei));
 				vertices[1].color = vertices[0].color = Color(0, 0, 0, 255);
 				ed->window->draw(vertices, 2, Lines);
+			}
+		}
+	}
+
+	void on_click(editor* ed, Vector2f pos, Vector2f size, Vector2i mouse) {
+		pos.y += 30;
+		for (int idx = 0; idx < this->inputs.size(); ++idx) {
+			input& inp = this->inputs[idx];
+
+			Vector2f rPos = Vector2f(pos.x + 10, pos.y + idx * 45);
+			Vector2f rSize = Vector2f(size.x - 20, 20);
+
+			if (mouse.x > rPos.x && mouse.x < rPos.x + rSize.x && mouse.y > rPos.y && mouse.y < rPos.y + rSize.y) {
+				this->input_active = idx;
 			}
 		}
 	}
@@ -176,10 +194,11 @@ struct button {
 		return false;
 	}
 };
-struct button_collection {
+
+class button_collection {
 	vector<button> buttons;
 	int active_button_popup;
-
+public:
 	void init();
 	void draw(editor* ed, Vector2f pos, Vector2f size);
 	void on_click(editor* ed, Event event);
@@ -189,21 +208,22 @@ struct button_collection {
 
 
 struct string_internal {
-	sf::Text text;
+	Text text;
 	int line;
 	int cursor;
 	string_internal* next_string;
 
 	string_internal() {
 		this->line = -1;
-		this->text = sf::Text();
+		this->text = Text();
 		this->text.setFont(g_Font);
 		this->text.setCharacterSize(14);
-		this->text.setFillColor(sf::Color::Black);
-		this->text.setString(sf::String(""));
+		this->text.setFillColor(Color::Black);
+		this->text.setString(String(""));
 		this->cursor = 0;
 		this->next_string = NULL;
 	}
+
 	void set_cursor(int new_cursor) {
 		new_cursor = max(min(this->length(), new_cursor), 0);
 		this->cursor = new_cursor;
@@ -248,7 +268,7 @@ struct string_internal {
 			this->set_cursor(prev_cursor);
 
 			if (is_last_char) {
-				g_Editor->set_cursor(Vector2i(g_Editor->_cursor.x + 1, 0));
+				g_Editor->set_cursor(Vector2i(g_Editor->get_cursor().x + 1, 0));
 			}
 
 			if (!next_string) {
@@ -276,7 +296,7 @@ struct string_internal {
 	}
 
 	Vector2f get_size() {
-		sf::FloatRect rect = text.getLocalBounds();
+		FloatRect rect = text.getLocalBounds();
 		return Vector2f(rect.width, rect.height);
 	}
 
@@ -423,6 +443,24 @@ struct string_internal {
 		this->text.setString(str);
 	}
 
+	void do_algo_brackets() {
+		String str = this->text.getString();
+		int brack_start = -1;
+		for (int idx = 0; idx < str.getSize(); ++idx) {
+			Uint32 pch = str[idx];
+			if (pch == L'{') {
+				brack_start = idx;
+			}
+			else if (brack_start >= 0 && pch == L'}') {
+				int num_len = idx - brack_start;
+				str.erase(idx - num_len, num_len + 1);
+				idx -= num_len + 1;
+				brack_start = -1;
+			}
+		}
+		this->text.setString(str);
+	}
+
 	void draw(RenderWindow* window, Vector2f position) {
 		this->text.setPosition(position + Vector2f(0, (text.getCharacterSize() + 5) * this->line));
 		window->draw(this->text);
@@ -511,9 +549,12 @@ void editor::remove_string(int position) {
 		this->data[0]->set("");
 	}
 	else {
+		if (this->data[position]) {
+			delete this->data[position];
+		}
 		this->data.erase(this->data.begin() + position);
 	}
-	
+
 	for (size_t idx = max(0, position - 1); idx < this->data.size(); ++idx) {
 		this->data[idx]->line = idx;
 
@@ -607,6 +648,9 @@ void editor::key_down(Event evnt) {
 	current_string->set_cursor(this->get_cursor().y);
 }
 
+void editor::on_click(Event evnt) {
+	this->actions->on_click(this, evnt);
+}
 
 void button_collection::init() {
 	this->buttons.push_back(button(
@@ -667,12 +711,16 @@ void button_collection::init() {
 		"Replace: 1 char",
 		[](editor* instance, vector<any> params) {
 			int index = min(max(1, any_cast<int>(params[0])), (int)instance->data.size()) - 1;
-			int idx = max(min(instance->data[index]->length(), any_cast<int>(params[1])), 1) - 1;
+			int idx = any_cast<int>(params[1]) - 1;
+			wstring pstr = any_cast<wstring>(params[2]);
+			if (!pstr.size() || index >= instance->data.size() || index < 0)
+				return;
 
-			instance->data[index]->set_cursor(idx);
-			instance->data[index]->backspace_back();
-			instance->data[index]->add(any_cast<wstring>(params[2]));
-			instance->set_cursor(Vector2i(index, instance->data[index]->cursor));
+			String str = instance->data[index]->text.getString();
+			if (idx >= str.getSize() || idx < 0)
+				return;
+			str[idx] = pstr[0];
+			instance->data[index]->text.setString(str);
 		},
 		{ {"In Nth line", input_type::int_field}, {"In Mth position", input_type::int_field}, {"New character", input_type::char_field} }
 	));
@@ -684,7 +732,9 @@ void button_collection::init() {
 			int p2 = any_cast<int>(params[3]);
 			wstring p3 = any_cast<wstring>(params[0]);
 			wstring p4 = any_cast<wstring>(params[1]);
-
+			if (p3 == p4) {
+				return;
+			}
 			if (p1 <= 0 || p2 <= 0 || p1 > instance->data.size() || p2 > instance->data.size()) {
 				p1 = 1;
 				p2 = instance->data.size();
@@ -773,6 +823,24 @@ void button_collection::init() {
 		{ {"From Kth line", input_type::int_field}, {"To Mth line", input_type::int_field}, {"N(0 = all)", input_type::int_field} }
 	));
 
+	this->buttons.push_back(button(
+		"Algo: {}",
+		[](editor* instance, vector<any> params) {
+			int p1 = any_cast<int>(params[0]);
+			int p2 = any_cast<int>(params[1]);
+			if (p1 <= 0 || p2 <= 0 || p1 > instance->data.size() || p2 > instance->data.size()) {
+				p1 = 1;
+				p2 = instance->data.size();
+			}
+			int index = min(max(1, p1), (int)instance->data.size()) - 1;
+			int index2 = min(max(1, p2), (int)instance->data.size()) - 1;
+			for (int idx = index; idx <= index2; ++idx) {
+				instance->data[idx]->do_algo_brackets();
+			}
+		},
+		{ {"From Kth line", input_type::int_field}, {"To Mth line", input_type::int_field} }
+	));
+
 	this->active_button_popup = -1;
 }
 
@@ -808,13 +876,17 @@ void button_collection::draw(editor* ed, Vector2f pos, Vector2f size) {
 }
 
 void button_collection::on_click(editor* ed, Event event) {
-	float dMove = ed->panel_size.y / this->buttons.size();
-	if (this->active_button_popup >= 0) {
-		return;
-	}
+	Vector2i mouse = Mouse::getPosition(*ed->window);
 	Vector2f pos = ed->panel_pos;
 	Vector2f size = ed->panel_size;
-	Vector2i mouse = Mouse::getPosition(*ed->window);
+
+	float dMove = ed->panel_size.y / this->buttons.size();
+	if (this->active_button_popup >= 0) {
+		Vector2f fCenter = Vector2f(ed->window->getSize().x / 2, ed->window->getSize().y / 2);
+		const Vector2f window_size = Vector2f(300, 300);
+		this->buttons[this->active_button_popup].on_click(ed, fCenter - Vector2f(window_size.x / 2, window_size.y / 2), window_size, mouse);
+		return;
+	}
 
 	for (int i = 0; i < this->buttons.size(); ++i) {
 		if (mouse.x >= pos.x && mouse.x <= pos.x + size.x && mouse.y >= pos.y + i * dMove && mouse.y <= pos.y + (i + 1) * dMove) { // #NoRect
@@ -852,18 +924,13 @@ int main()
 			}
 			else if (event.type == Event::MouseButtonPressed) {
 				if (event.mouseButton.button == 0) {
-					g_Editor->actions->on_click(g_Editor, event);
+					g_Editor->on_click(event);
 				}
 			}
-			else if (event.type == Event::MouseButtonReleased) {
-				if (event.mouseButton.button == 0) {
-
-				}
-			}
-			else if (event.type == sf::Event::TextEntered) {
+			else if (event.type == Event::TextEntered) {
 				g_Editor->text_entered(event);
 			}
-			else if (event.type == sf::Event::KeyPressed) {
+			else if (event.type == Event::KeyPressed) {
 				g_Editor->key_down(event);
 			}
 		}
