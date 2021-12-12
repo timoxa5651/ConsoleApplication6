@@ -1,5 +1,4 @@
-﻿#include <any>
-#define FMT_HEADER_ONLY
+﻿#define FMT_HEADER_ONLY
 #include "fmt/format.h"
 #include "SFML/Graphics.hpp"
 #include <string>
@@ -7,6 +6,7 @@
 #include <cassert>
 #include <random>
 #include <chrono>
+#include <any>
 
 using namespace std;
 
