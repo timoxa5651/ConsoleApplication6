@@ -14,11 +14,11 @@ using namespace sf;
 
 Font font;
 
-class window {
+class WndClass {
 	RenderWindow* wnd;
 	Vector2f size;
 public:
-	window(RenderWindow* wnd, Vector2f size) {
+	WndClass(RenderWindow* wnd, Vector2f size) {
 		this->wnd = wnd;
 		this->size = size;
 	}
@@ -26,19 +26,25 @@ public:
 	void frame() {
 
 	}
+
+	void on_mousedown(Vector2f pos) {
+
+	}
+
+	void on_mouseup(Vector2f pos) {
+
+	}
 };
 
 int main()
 {
 	RenderWindow window(VideoMode(800, 800), "123");
+	WndClass* wnd = new WndClass(&window, Vector2f(800, 800));
 
 	font.loadFromFile("arial.ttf");
 
 	while (window.isOpen())
 	{
-		static bool _moving = false;
-		static Vector2f _start = Vector2f();
-
 		Event event;
 		while (window.pollEvent(event))
 		{
@@ -47,30 +53,19 @@ int main()
 			}
 			else if (event.type == Event::MouseButtonPressed) {
 				if (event.mouseButton.button == 0) {
-					_moving = true;
-					_start = Vector2f(Mouse::getPosition(window));
+					wnd->on_mousedown(Vector2f(event.mouseButton.x, event.mouseButton.y));
 				}
 			}
 			else if (event.type == Event::MouseButtonReleased) {
 				if (event.mouseButton.button == 0) {
-					if (_moving) {
-						pl->offset -= (Vector2f(Mouse::getPosition(window)) - _start);
-					}
-					_moving = false;
+					wnd->on_mouseup(Vector2f(event.mouseButton.x, event.mouseButton.y));
 				}
 			}
 		}
 		window.clear(Color(20, 20, 20, 255));
 
-
-		pl->begin_frame();
-		pl->draw_grid();
-		for (area ar : areas) {
-			ar.render(pl);
-		}
-		pl->end_frame();
-
-		pl->offset = prev_offset;
+		wnd->frame();
+		
 		window.display();
 	}
 
