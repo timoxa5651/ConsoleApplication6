@@ -81,19 +81,21 @@ public:
 		throw ReadExpection(this->off, errmsg);
 	}
 
-	String get_closing_block(int st, char add, char term) {
-		int cnt = 1;
+	String get_closing_block(int st, char add, char term, int cnt = 1) {
+		bool flag = false;
 		String rstr;
 		for (int i = st; i < this->str.getSize(); ++i) {
 			rstr += this->str[i];
 			if (this->str[i] == term) {
 				--cnt;
+				flag = true;
 			}
 			else if (this->str[i] == add) {
 				++cnt;
+				flag = true;
 			}
 
-			if (cnt <= 0) {
+			if (flag && cnt <= 0) {
 				break;
 			}
 		}
@@ -257,7 +259,7 @@ Parser_op Parser1::next_opcode(bool read) {
 		vl = stream.peek_expect({ "and ", "or ", "and", "or" }, "Expected and|or");
 	}
 
-	if (vl == 0) {
+	if (vl == 0 || vl == 2) {
 		return Parser_op::And;
 	}
 	else {
@@ -309,35 +311,41 @@ vector<pair<Parser_val, int>> Parser1::next_opvals(bool read) {
 		int start = this->stream.get_cur();
 
 		vector<pair<Parser_val, int>> vec;
+		int tlength = 0;
 		while (true) {
 			int v = 0;
-			String block = this->stream.get_block(this->stream.get_cur(), { ',' }, &v);
-			if (v == 0) {
-				block = block.substring(0, block.getSize() - 1);
+			Parser_val vl = this->next_opval(false);
+			int dcur = this->stream.get_cur();
+			String block;
+			if (vl == Parser_val::False) {
+				block = this->stream.str.substring(this->stream.get_cur(), 5);
 			}
-
-			try {
-				int vv = Stream(block).peek_expect({ '(' });
-				block = '(' + this->stream.get_closing_block(this->stream.get_cur() + 1, '(', ')');
+			else if (vl == Parser_val::True) {
+				block = this->stream.str.substring(this->stream.get_cur(), 4);
 			}
-			catch (ReadExpection& ex) {
-
+			else if (vl == Parser_val::Not) {
+				int jk = stream.read_expect({ "not ", "not" }, "Expected not");
+				tlength += (jk ? 3 : 4);
+				continue;
 			}
-
+			else if (vl == Parser_val::Expr) {
+				block = this->stream.get_closing_block(this->stream.get_cur(), '(', ')', 0);
+			}
 			if (this->debug) {
 				cout << block.toAnsiString() << endl;
 			}
 
 			try {
-				Parser_val vl = Parser1(block).next_opval(true);
-				vec.push_back({ vl, block.getSize() });
+				Parser_val vl2 = Parser1(block).next_opval(true);
+				vec.push_back({ tlength ? Parser_val::Not : vl2, block.getSize() + tlength });
+				tlength = 0;
 			}
 			catch (ReadExpection& ex) {
 				throw ReadExpection(this->stream.get_cur() + ex.position, ex.msg);
 			}
 
 			try {
-				this->stream.set_cur(this->stream.get_cur() + block.getSize());
+				this->stream.set_cur(dcur + block.getSize());
 				int k = stream.read_expect({ ",", ")" }, "Expected , or )");
 				if (k == 1) {
 					break;
@@ -366,7 +374,7 @@ vector<pair<Parser_val, int>> Parser1::next_opvals(bool read) {
 }
 
 int Parser1::next_expr(int cur, bool read) {
-	this->debug = true;
+	//this->debug = true;
 
 	try {
 		// операнд
@@ -556,7 +564,7 @@ int Parser2::next_sum(bool read) {
 		neg = true;
 	}
 	catch (ReadExpection& ex) {
-		
+
 	}
 
 	int term = this->next_term(read);
@@ -763,14 +771,14 @@ int main()
 	}*/
 
 	/*String tests[] = {
-		//String("555+(0-(0-6))+(((0-6666)))+6106"), // 1
-		//String("182621-2818-(12827-18288817-(817277+(2)))+((81-23-(18272+0))+917236)-20172093"), //1
-		String("((0)+5")
+		String("555+(0-(0-6))+(((0-6666)))+6106"), // 1
+		String("182621-2818-(12827-18288817-(817277+(2)))+((81-23-(18272+0))+917236)-20172093"), //1
+		String("((0)+5)")
 	};
 	int num = 1;
 	for (String s : tests) {
 		Parser2 parser(s);
-		parser.set_debug(true);
+		//parser.set_debug(true);
 		try {
 			int rs = parser.parse();
 			cout << "Test " << num << ": OK (" << rs << ")" << endl;
@@ -784,7 +792,7 @@ int main()
 		++num;
 	}*/
 
-	cin.get();
+	//cin.get();
 
 	RenderWindow window(VideoMode(800, 800), "123");
 	WndClass* wnd = new WndClass(&window, Vector2f(800, 800));
