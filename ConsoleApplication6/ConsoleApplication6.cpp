@@ -635,7 +635,7 @@ public:
 		this->do_buttons();
 
 		Vector2f field_size = Vector2f(500, 400);
-		Vector2f field_pos = Vector2(this->size.x / 2 - field_size.x / 2, this->size.y / 2 - field_size.y / 2);
+		Vector2f field_pos = Vector2f(this->size.x / 2 - field_size.x / 2, this->size.y / 2 - field_size.y / 2);
 
 		RectangleShape rect(field_size);
 		rect.setPosition(field_pos);
@@ -727,7 +727,7 @@ public:
 	void on_mousedown(Vector2f pos) {
 		Vector2f button_pos = Vector2f(250, 150);
 		Vector2f button_size = Vector2f(25, 25);
-		if (Rect(button_pos, button_size).contains(pos)) {
+		if (Rect<float>(button_pos, button_size).contains(pos)) {
 			this->button_state = !this->button_state;
 		}
 	}
