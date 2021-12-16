@@ -60,8 +60,9 @@ public:
 		T* dPtr = (T*)pBytes;
 		for (long long idx = 0; idx < cbSize / sizeof(T); ++idx) {
 			//&= ~(1 << (sizeof(T) * 8 - 1));
-			if (dPtr[idx] < 0)
-				dPtr[idx] = -dPtr[idx];
+			while (dPtr[idx] < 0 || isnan(dPtr[idx]) || isinf(dPtr[idx])) {
+				dPtr[idx] = this->rnd.next();
+			}
 		}
 	}
 
@@ -78,8 +79,10 @@ public:
 		}*/
 #ifdef _DEBUG
 		for (int i = 1; i < cbInput; ++i) {
-			if (!isnan(input[i])) {
-				assert(input[i - 1] <= input[i]);
+			if (!isnan(input[i]) && !isinf(input[i])) {
+				if (input[i - 1] > input[i]) {
+					cout << "Err at " << i << ": " << input[i - 1] << " > " << input[i] << endl;
+				}
 			}
 		}
 #endif
@@ -231,8 +234,9 @@ int main()
 	//QSTLSort<test_type>* qsort = new QSTLSort<test_type>(seed);
 
 	for (int i = 0; i < 7; ++i) {
-		InsertionSort<test_type>* sort = new InsertionSort<test_type>(seed);
+		auto sort = new STLSort<test_type>(seed);
 		cout << "sort " << sort->Calculate(size) << "ms\n";
+		delete sort;
 	}
 	//RadixSort<test_type>* radix = new RadixSort<test_type>((uint64_t)time(0) * i);
 
