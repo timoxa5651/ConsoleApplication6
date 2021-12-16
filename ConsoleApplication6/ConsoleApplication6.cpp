@@ -366,6 +366,8 @@ vector<pair<Parser_val, int>> Parser1::next_opvals(bool read) {
 }
 
 int Parser1::next_expr(int cur, bool read) {
+	this->debug = true;
+
 	try {
 		// операнд
 		Parser_val opval = this->next_opval(false);
@@ -719,7 +721,6 @@ public:
 		Vector2f button_size = Vector2f(25, 25);
 		if (Rect(button_pos, button_size).contains(pos)) {
 			this->button_state = !this->button_state;
-			return;
 		}
 	}
 
@@ -819,5 +820,6 @@ int main()
 		window.display();
 	}
 
+	delete wnd;
 	return 0;
 }
