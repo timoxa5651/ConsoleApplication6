@@ -694,7 +694,7 @@ public:
 		for (int i = 0; i < this->current_text.getSize(); ++i) {
 			Text text2;
 			text2.setFont(g_Font);
-			text2.setCharacterSize(14);
+			text2.setCharacterSize(16);
 			text2.setFillColor(Color(200, 200, 200, 255));
 			text2.setString(this->current_text.substring(i, 1));
 
@@ -748,11 +748,11 @@ public:
 
 int main()
 {
-	/*String tests[] = {
+	String tests[] = {
 		String("and((or(false,not true,(false),(or(false,true)))),(or(false,not true,(false),(and(not false,true)))))"), // 1
 		String("((((false))))"), // 0
 		String("not (or (false,(not (not (((true)))))))"), // 0
-		String("or ((or (not (not (not false)),false)),false)") // 1
+		String("and(true,(or(false,not true)),not not true)") // 1
 	};
 	int num = 1;
 	for (String s : tests) {
@@ -768,7 +768,7 @@ int main()
 			cout << "Test " << num << ": Fail (Generic)" << endl;
 		}
 		++num;
-	}*/
+	}
 
 	/*String tests[] = {
 		String("555+(0-(0-6))+(((0-6666)))+6106"), // 1
