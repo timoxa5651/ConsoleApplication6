@@ -132,7 +132,7 @@ public:
 		return result;
 	}
 
-	void RSort_step(T* source, T* dest, unsigned int n, unsigned int* offset, unsigned char sortable_bit)
+	__forceinline void RSort_step(T* source, T* dest, unsigned int n, unsigned int* offset, unsigned char sortable_bit)
 	{
 		unsigned char* b = (unsigned char*)&source[n] + sortable_bit;
 		T* v = &source[n];
