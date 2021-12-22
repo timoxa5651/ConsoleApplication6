@@ -132,7 +132,7 @@ public:
 		return result;
 	}
 
-	__forceinline void RSort_step(T* source, T* dest, unsigned int n, unsigned int* offset, unsigned char sortable_bit)
+	__forceinline void Sort_step(T* source, T* dest, unsigned int n, unsigned int* offset, int sortable_bit)
 	{
 		unsigned char* b = (unsigned char*)&source[n] + sortable_bit;
 		T* v = &source[n];
@@ -164,11 +164,10 @@ public:
 
 		for (unsigned int digit = 0; digit < sizeof(T); digit++)
 		{
-			RSort_step(pBuffer, outBuffer, cbSize - 1, &s[256 * digit], digit);
-			T* temp = pBuffer;
-			pBuffer = outBuffer;
-			outBuffer = temp;
+			Sort_step(pBuffer, outBuffer, cbSize - 1, &s[256 * digit], digit);
+			swap(pBuffer, outBuffer);
 		}
+		memcpy(outBuffer, pBuffer, sizeof(T) * cbSize);
 	}
 };
 
@@ -234,7 +233,7 @@ int main()
 	//QSTLSort<test_type>* qsort = new QSTLSort<test_type>(seed);
 
 	for (int i = 0; i < 7; ++i) {
-		auto sort = new STLSort<test_type>(seed);
+		auto sort = new RadixSort<test_type>(seed);
 		cout << "sort " << sort->Calculate(size) << "ms\n";
 		delete sort;
 	}
