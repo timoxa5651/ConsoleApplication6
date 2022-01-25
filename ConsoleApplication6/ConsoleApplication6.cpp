@@ -9,7 +9,9 @@
 #include <any>
 #include <list>
 
-using namespace std;
+using std::cout;
+using std::cin;
+using std::endl;
 
 template<typename T = int>
 struct Node {
@@ -33,20 +35,58 @@ class List {
 	using iterator = Node<T>::iterator;
 	iterator head;
 
-	using Predicate = bool(*)(T&, T&);
-	void _Sort(iterator start, int len, Predicate pred) {
-		// order [_First, _First + _Size), return _First + _Size
-		if (len == 0) {
-			return start;
+	template<typename _Pred>
+	iterator _MakePartition(iterator head, iterator end, _Pred pred, iterator* newHead, iterator* newEnd)
+	{
+		iterator pivot = end;
+		iterator prev = nullptr, cur = head, tail = pivot;
+		while (cur != pivot) {
+			if (pred(cur->data, pivot->data))
+			{
+				if ((*newHead) == nullptr)
+					(*newHead) = cur;
+				prev = cur;
+				cur = cur->next;
+			}
+			else // cur > pivot
+			{
+				if (prev)
+					prev->next = cur->next;
+				iterator tmp = cur->next;
+				cur->next = nullptr;
+				tail->next = cur;
+				tail = cur;
+				cur = tmp;
+			}
 		}
-		else if (len == 1) {
-			return start->next;
-		}
+		if ((*newHead) == nullptr)
+			(*newHead) = pivot;
+		(*newEnd) = tail;
+		return pivot;
 
-		auto _Mid = _Sort(_First, _Size / 2, pred);
-		const auto _Last = _Sort(_Mid, _Size - _Size / 2, pred);
-		_First = _Merge_same(_First, _Mid, _Last, pred);
-		return _Last;
+	}
+
+	template<typename _Pred>
+	iterator _Sort(iterator start, iterator end, _Pred pred) {
+		if (!start || !end || start == end)
+			return start;
+		iterator newHead = nullptr, newEnd = nullptr;
+		iterator pivot = _MakePartition(start, end, pred, &newHead, &newEnd);
+		if (newHead != pivot) {
+			iterator tmp = newHead;
+			while (tmp->next != pivot)
+				tmp = tmp->next;
+			tmp->next = nullptr;
+			newHead = _Sort(newHead, tmp, pred);
+			tmp = newHead;
+			while (tmp->next) {
+				tmp = tmp->next;
+			}
+			tmp->next = pivot;
+		}
+		pivot->next = _Sort(pivot->next, newEnd, pred);
+
+		return newHead;
 	}
 public:
 	size_t size;
@@ -55,6 +95,13 @@ public:
 		this->head = nullptr;
 		this->size = 0;
 	};
+	~List() {
+		while (this->head) {
+			iterator nxt = this->head->next;
+			delete this->head;
+			this->head = nxt;
+		}
+	}
 
 	iterator begin() {
 		return this->head;
@@ -64,9 +111,8 @@ public:
 	}
 	
 	iterator InsertFirst(T data) {
-		if (!element)
-			return nullptr;
 		this->head = new Node(data, this->head);
+		this->size += 1;
 		return this->head;
 	}
 
@@ -74,6 +120,7 @@ public:
 		if (!element)
 			return nullptr;
 		element->next = new Node(data, element->next);
+		this->size += 1;
 		return element->next;
 	}
 
@@ -83,30 +130,61 @@ public:
 		iterator anext = new Node(element->data, element->next);
 		element->data = data;
 		element->next = anext;
+		this->size += 1;
 		return element;
 	}
 
-	void Sort(Predicate pred = greater<T>()) {
-		return this->_Sort(this->begin(), this->size, pred);
+	void Delete(iterator iter) {
+		if (!iter || !iter->next)
+			return;
+		iterator q = iter->next;
+		iter->data = iter->next->data;
+		iter->next = iter->next->next;
+		delete q;
+	}
+
+	template<typename _Pred>
+	void Sort(_Pred pred) {
+		if (!this->head)
+			return;
+		iterator tail = this->head;
+		while (tail->next) {
+			tail = tail->next;
+		}
+		this->head = this->_Sort(this->head, tail, pred);
+	}
+
+	void Sort() {
+		return this->Sort(std::greater<T>());
 	}
 };
 
 int main()
 {
-	srand(time(0));
-
-	auto list = new List();
+	auto list = new List<int>();
 	list->InsertBefore(list->InsertFirst(7), 6);
-	list->InsertBefore(list->InsertFirst(5), 4);
 	list->InsertAfter(list->InsertAfter(list->InsertFirst(1), 2), 3);
+	list->InsertBefore(list->InsertFirst(5), 4);
 
 	for (auto it = list->begin(); it != list->end(); it = it->walk()) {
 		cout << it->data << " ";
 	}
-
-	std::list<int> lst;
-	lst.sort();
-
 	cout << endl;
+
+	list->Sort(std::greater<int>());
+
+	for (auto it = list->begin(); it != list->end(); it = it->walk()) {
+		cout << it->data << " ";
+	}
+	cout << endl;
+
+	list->InsertAfter(list->begin(), 8);
+	list->Sort(std::less<int>());
+
+	for (auto it = list->begin(); it != list->end(); it = it->walk()) {
+		cout << it->data << " ";
+	}
+	cout << endl;
+
 	return 0;
 }
