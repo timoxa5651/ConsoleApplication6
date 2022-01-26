@@ -36,20 +36,11 @@ class List {
 	iterator head;
 
 	template<typename _Pred>
-	iterator _MakePartition(iterator head, iterator end, _Pred pred, iterator* newHead, iterator* newEnd)
-	{
+	iterator MakePartition(iterator head, iterator end, _Pred pred, iterator* newHead, iterator* newEnd) {
 		iterator pivot = end;
 		iterator prev = nullptr, cur = head, tail = pivot;
 		while (cur != pivot) {
-			if (pred(cur->data, pivot->data))
-			{
-				if ((*newHead) == nullptr)
-					(*newHead) = cur;
-				prev = cur;
-				cur = cur->next;
-			}
-			else // cur > pivot
-			{
+			if (pred(cur->data, pivot->data)) {
 				if (prev)
 					prev->next = cur->next;
 				iterator tmp = cur->next;
@@ -58,33 +49,53 @@ class List {
 				tail = cur;
 				cur = tmp;
 			}
+			else // cur > pivot
+			{
+				if ((*newHead) == nullptr)
+					(*newHead) = cur;
+				prev = cur;
+				cur = cur->next;
+			}
 		}
-		if ((*newHead) == nullptr)
+		if ((*newHead) == nullptr) {
 			(*newHead) = pivot;
+		}
 		(*newEnd) = tail;
 		return pivot;
 
+		/*iterator pivot = head;
+		iterator i = head, j = end, tail = end;
+		while (true) {
+
+			while (pred(i->data, pivot->data)) {
+				i = i->next;
+			}
+			while (!pred(j->data, pivot->data)) {
+				// j -= 1;
+			}
+
+		}*/
 	}
 
 	template<typename _Pred>
-	iterator _Sort(iterator start, iterator end, _Pred pred) {
+	iterator Sort(iterator start, iterator end, _Pred pred) {
 		if (!start || !end || start == end)
 			return start;
 		iterator newHead = nullptr, newEnd = nullptr;
-		iterator pivot = _MakePartition(start, end, pred, &newHead, &newEnd);
+		iterator pivot = this->MakePartition(start, end, pred, &newHead, &newEnd);
 		if (newHead != pivot) {
 			iterator tmp = newHead;
 			while (tmp->next != pivot)
 				tmp = tmp->next;
 			tmp->next = nullptr;
-			newHead = _Sort(newHead, tmp, pred);
+			newHead = this->Sort(newHead, tmp, pred);
 			tmp = newHead;
 			while (tmp->next) {
 				tmp = tmp->next;
 			}
 			tmp->next = pivot;
 		}
-		pivot->next = _Sort(pivot->next, newEnd, pred);
+		pivot->next = this->Sort(pivot->next, newEnd, pred);
 
 		return newHead;
 	}
@@ -109,7 +120,7 @@ public:
 	iterator end() {
 		return nullptr;
 	}
-	
+
 	iterator InsertFirst(T data) {
 		this->head = new Node(data, this->head);
 		this->size += 1;
@@ -151,7 +162,7 @@ public:
 		while (tail->next) {
 			tail = tail->next;
 		}
-		this->head = this->_Sort(this->head, tail, pred);
+		this->head = this->Sort(this->head, tail, pred);
 	}
 
 	void Sort() {
