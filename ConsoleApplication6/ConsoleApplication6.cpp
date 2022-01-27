@@ -1,13 +1,4 @@
-﻿#define FMT_HEADER_ONLY
-#include "fmt/format.h"
-#include "SFML/Graphics.hpp"
-#include <string>
-#include <iostream>
-#include <cassert>
-#include <random>
-#include <chrono>
-#include <any>
-#include <list>
+﻿#include <iostream>
 
 using std::cout;
 using std::cin;
@@ -15,31 +6,30 @@ using std::endl;
 
 template<typename T = int>
 struct Node {
-	using iterator = Node<T>*;
-
-	iterator next;
+public:
+	Node<T>* next;
 	T data;
 
-	Node(T& dt, iterator nxt = nullptr) {
+	Node(T& dt, Node<T>* nxt = nullptr) {
 		this->next = nxt;
 		this->data = dt;
 	}
 
-	iterator walk() {
+	Node<T>* walk() {
 		return this->next;
 	}
 };
 
 template<typename T = int>
 class List {
-	using iterator = Node<T>::iterator;
+	using iterator = Node<T>*;
 	iterator head;
 
 	template<typename _Pred>
 	iterator MakePartition(iterator head, iterator end, _Pred pred, iterator* newHead, iterator* newEnd) {
-		iterator pivot = end;
-		iterator prev = nullptr, cur = head, tail = pivot;
-		while (cur != pivot) {
+		const iterator pivot = end;
+		iterator prev = nullptr, cur = head, tail = end;
+		while (cur != end) {
 			if (pred(cur->data, pivot->data)) {
 				if (prev)
 					prev->next = cur->next;
@@ -49,7 +39,7 @@ class List {
 				tail = cur;
 				cur = tmp;
 			}
-			else // cur > pivot
+			else
 			{
 				if ((*newHead) == nullptr)
 					(*newHead) = cur;
@@ -62,19 +52,6 @@ class List {
 		}
 		(*newEnd) = tail;
 		return pivot;
-
-		/*iterator pivot = head;
-		iterator i = head, j = end, tail = end;
-		while (true) {
-
-			while (pred(i->data, pivot->data)) {
-				i = i->next;
-			}
-			while (!pred(j->data, pivot->data)) {
-				// j -= 1;
-			}
-
-		}*/
 	}
 
 	template<typename _Pred>
@@ -95,7 +72,10 @@ class List {
 			}
 			tmp->next = pivot;
 		}
-		pivot->next = this->Sort(pivot->next, newEnd, pred);
+
+		if (newEnd != pivot->next) {
+			pivot->next = this->Sort(pivot->next, newEnd, pred);
+		}
 
 		return newHead;
 	}
@@ -197,5 +177,21 @@ int main()
 	}
 	cout << endl;
 
+	int n;
+	cin >> n;
+
+	delete list;
+	list = new List<int>();
+	for (int i = 0; i < n; ++i) {
+		int k;
+		cin >> k;
+		list->InsertFirst(k);
+	}
+
+	list->Sort(std::less<int>());
+	for (auto it = list->begin(); it != list->end(); it = it->walk()) {
+		cout << it->data << " ";
+	}
+	cout << endl;
 	return 0;
 }
