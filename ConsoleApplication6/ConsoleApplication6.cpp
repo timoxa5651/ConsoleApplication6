@@ -15,24 +15,23 @@ using std::endl;
 
 template<typename T = int>
 struct Node {
-	using iterator = Node<T>*;
-
-	iterator next;
+public:
+	Node<T>* next;
 	T data;
 
-	Node(T& dt, iterator nxt = nullptr) {
+	Node(T& dt, Node<T>* nxt = nullptr) {
 		this->next = nxt;
 		this->data = dt;
 	}
 
-	iterator walk() {
+	Node<T>* walk() {
 		return this->next;
 	}
 };
 
 template<typename T = int>
 class List {
-	using iterator = Node<T>::iterator;
+	using iterator = Node<T>*;
 	iterator head;
 
 	template<typename _Pred>
@@ -61,7 +60,7 @@ class List {
 				tail = cur;
 				cur = tmp;
 			}
-			else // cur > pivot
+			else
 			{
 				if ((*newHead) == nullptr)
 					(*newHead) = cur;
