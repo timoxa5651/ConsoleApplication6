@@ -36,11 +36,23 @@ class List {
 	iterator head;
 
 	template<typename _Pred>
-	iterator MakePartition(iterator head, iterator end, _Pred pred, iterator* newHead, iterator* newEnd) {
+	iterator MakePartition(iterator head, iterator end, _Pred pred, iterator* newHead, iterator* newMid, iterator* newEnd) {
 		iterator pivot = end;
 		iterator prev = nullptr, cur = head, tail = pivot;
-		while (cur != pivot) {
-			if (pred(cur->data, pivot->data)) {
+		*newMid = tail;
+		while (cur != end) {
+			if (cur->data == pivot->data) {
+				if (prev)
+					prev->next = cur->next;
+				iterator tmp = cur->next;
+				cur->next = (*newMid)->next;
+				(*newMid)->next = cur;
+				if (tail == *newMid)
+					tail = cur;
+				*newMid = cur;
+				cur = tmp;
+			}
+			else if (pred(cur->data, pivot->data)) {
 				if (prev)
 					prev->next = cur->next;
 				iterator tmp = cur->next;
@@ -62,28 +74,33 @@ class List {
 		}
 		(*newEnd) = tail;
 		return pivot;
-
-		/*iterator pivot = head;
-		iterator i = head, j = end, tail = end;
-		while (true) {
-
-			while (pred(i->data, pivot->data)) {
-				i = i->next;
-			}
-			while (!pred(j->data, pivot->data)) {
-				// j -= 1;
-			}
-
-		}*/
 	}
 
 	template<typename _Pred>
 	iterator Sort(iterator start, iterator end, _Pred pred) {
 		if (!start || !end || start == end)
 			return start;
-		iterator newHead = nullptr, newEnd = nullptr;
-		iterator pivot = this->MakePartition(start, end, pred, &newHead, &newEnd);
-		if (newHead != pivot) {
+		iterator newHead = nullptr, newEnd = nullptr, newMid = nullptr;
+		iterator pivot = this->MakePartition(start, end, pred, &newHead, &newMid, &newEnd);
+
+		/*iterator t1 = newHead;
+		while (t1 != pivot) {
+			cout << t1->data << " ";
+			t1 = t1->next;
+		}
+		cout << "ddd ";
+		while (t1 != newMid) {
+			cout << t1->data << " ";
+			t1 = t1->next;
+		}
+		cout << "eee ";
+		while (t1 != newEnd) {
+			cout << t1->data << " ";
+			t1 = t1->next;
+		}
+		cout << "\n";*/
+
+		if (newHead != pivot) { // head -> pivot
 			iterator tmp = newHead;
 			while (tmp->next != pivot)
 				tmp = tmp->next;
@@ -95,7 +112,10 @@ class List {
 			}
 			tmp->next = pivot;
 		}
-		pivot->next = this->Sort(pivot->next, newEnd, pred);
+		// (pivot, mid] - same elements, skip
+		// mid -> end
+		if(newMid->next) //not end
+			newMid->next = this->Sort(newMid->next, newEnd, pred);
 
 		return newHead;
 	}
@@ -173,9 +193,13 @@ public:
 int main()
 {
 	auto list = new List<int>();
-	list->InsertBefore(list->InsertFirst(7), 6);
-	list->InsertAfter(list->InsertAfter(list->InsertFirst(1), 2), 3);
-	list->InsertBefore(list->InsertFirst(5), 4);
+	//list->InsertBefore(list->InsertFirst(7), 6);
+	//list->InsertAfter(list->InsertAfter(list->InsertFirst(7), 8), 8);
+	//list->InsertBefore(list->InsertFirst(6), 7);
+	//list->InsertBefore(list->InsertFirst(9), 5);
+	
+	for (int i = 1; i <= 10; ++i)
+		list->InsertFirst(i);
 
 	for (auto it = list->begin(); it != list->end(); it = it->walk()) {
 		cout << it->data << " ";
@@ -183,14 +207,6 @@ int main()
 	cout << endl;
 
 	list->Sort(std::greater<int>());
-
-	for (auto it = list->begin(); it != list->end(); it = it->walk()) {
-		cout << it->data << " ";
-	}
-	cout << endl;
-
-	list->InsertAfter(list->begin(), 8);
-	list->Sort(std::less<int>());
 
 	for (auto it = list->begin(); it != list->end(); it = it->walk()) {
 		cout << it->data << " ";
