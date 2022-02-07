@@ -145,6 +145,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BaseEntity.cpp" />
+    <ClCompile Include="BaseFood.cpp" />
     <ClCompile Include="BaseGame.cpp" />
     <ClCompile Include="ConsoleApplication6.cpp" />
     <ClCompile Include="SnakeEntity.cpp" />
@@ -152,6 +153,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BaseEntity.h" />
+    <ClInclude Include="BaseFood.h" />
     <ClInclude Include="BaseGame.h" />
     <ClInclude Include="fmt\args.h" />
     <ClInclude Include="fmt\chrono.h" />

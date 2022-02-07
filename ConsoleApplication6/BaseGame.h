@@ -9,7 +9,6 @@
 
 class BaseGame
 {
-	sf::RenderWindow renderWindow;
 	bool wantsClose;
 
 	std::map<uint32_t, BaseEntity*> clientEntities;
@@ -19,8 +18,10 @@ class BaseGame
 public:
 	static BaseGame* g_Instance;
 
+	sf::RenderWindow renderWindow;
+
 	void Start();
-	void Update(float deltaTime);
+	void Update(double deltaTime);
 	void UpdateView();
 	bool IsRunning();
 	void RegisterEntity(BaseEntity* entity);

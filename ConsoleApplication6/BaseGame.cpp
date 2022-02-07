@@ -18,20 +18,30 @@ void BaseGame::UpdateView() {
 	
 }
 
-void BaseGame::Update(float deltaTime) {
+void BaseGame::Update(double deltaTime) {
 	sf::Event evnt;
 	while (this->renderWindow.pollEvent(evnt)) {
 		if (evnt.type == sf::Event::EventType::Closed) {
 			this->wantsClose = true;
 			return;
 		}
+		else if (evnt.type == sf::Event::KeyPressed) {
+			for (auto it = this->clientEntities.begin(); it != this->clientEntities.end(); ++it) {
+				(*it).second->OnKeyPressed(evnt.key.code);
+			}
+		}
 	}
 	this->renderWindow.clear(sf::Color(0, 0, 0, 255));
 
 	for (auto it = this->clientEntities.begin(); it != this->clientEntities.end(); ++it) {
 		(*it).second->Update(deltaTime);
+		(*it).second->Draw(this->renderWindow);
 	}
 
+	sf::View view;
+	view.setCenter(this->localSnake->position);
+	this->renderWindow.setView(view);
+	
 	this->renderWindow.display();
 }
 

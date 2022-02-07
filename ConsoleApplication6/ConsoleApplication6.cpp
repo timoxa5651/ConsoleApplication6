@@ -16,11 +16,11 @@ int main()
 	BaseGame::g_Instance = new BaseGame();
 
 	BaseGame::g_Instance->Start();
-	float lastUpdateTime = Utils::Time();
+	double lastUpdateTime = Utils::Time();
 	while (BaseGame::g_Instance->IsRunning()) {
 		BaseGame::g_Instance->Update(Utils::Time() - lastUpdateTime);
 		lastUpdateTime = Utils::Time();
-		Sleep(1);
+		std::this_thread::sleep_for(std::chrono::microseconds(100));
 	}
 	return 0;
 }
