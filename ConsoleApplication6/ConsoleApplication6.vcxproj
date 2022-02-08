@@ -149,6 +149,7 @@
     <ClCompile Include="BaseGame.cpp" />
     <ClCompile Include="ConsoleApplication6.cpp" />
     <ClCompile Include="SnakeEntity.cpp" />
+    <ClCompile Include="SpawnerEntity.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -169,6 +170,7 @@
     <ClInclude Include="fmt\ranges.h" />
     <ClInclude Include="fmt\xchar.h" />
     <ClInclude Include="SnakeEntity.h" />
+    <ClInclude Include="SpawnerEntity.h" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

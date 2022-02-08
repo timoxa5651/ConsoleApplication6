@@ -20,7 +20,7 @@ int main()
 	while (BaseGame::g_Instance->IsRunning()) {
 		BaseGame::g_Instance->Update(Utils::Time() - lastUpdateTime);
 		lastUpdateTime = Utils::Time();
-		std::this_thread::sleep_for(std::chrono::microseconds(100));
+		std::this_thread::sleep_for(std::chrono::microseconds(500));
 	}
 	return 0;
 }

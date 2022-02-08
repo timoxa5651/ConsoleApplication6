@@ -26,6 +26,9 @@ public:
 	P Length() {
 		return sqrtl(this->x * this->x + this->y * this->y);
 	}
+	P Dot(Vec2 other) {
+		return this->x * other.x + this->y * other.y;
+	}
 
 	Vec2 Normalized() {
 		P len = this->Length();
@@ -39,4 +42,37 @@ public:
 	}
 };
 
-using Vec2f = Vec2<float>;
+using Vec2f = Vec2<float, float>;
+
+template<typename P = float, class T = Vec2<P, P>>
+class Line {
+public:
+	T start;
+	T end;
+	
+	Line(T start, T end) : start(start), end(end) {};
+	Line() : Line(T(), T()) {};
+
+	T ClosestPoint(T pos)
+	{
+		static auto Clamp = [](P value, P min, P max)
+		{
+			if (value < min)
+			{
+				value = min;
+			}
+			else if (value > max)
+			{
+				value = max;
+			}
+			return value;
+		};
+
+		T a = end - start;
+		P magnitude = a.Length();
+		if (magnitude == 0) 
+			return start;
+		T vector = a / magnitude;
+		return start + vector * Clamp(T(pos - start).Dot(vector), 0, magnitude);
+	}
+};

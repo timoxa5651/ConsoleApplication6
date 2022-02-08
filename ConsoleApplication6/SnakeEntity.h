@@ -11,7 +11,6 @@ struct PosEntry {
 };
 class SnakeEntity : public BaseEntity
 {
-	bool isLocal;
 	Vec2f desiredVelocity;
 	float moveSpeed;
 	float desiredMoveSpeed;
@@ -22,13 +21,18 @@ class SnakeEntity : public BaseEntity
 	std::deque<PosEntry> positionHistory;
 public:
 	double score;
+	bool isLocal;
 
 	SnakeEntity();
 	void MakeLocal();
+	void AddScore(float scoreDelta);
 
 	virtual void Draw(sf::RenderWindow& wnd);
 	virtual void OnSpawned();
 	virtual void OnKeyPressed(sf::Keyboard::Key key);
 	virtual void Update(double deltaTime);
+	virtual float GetRadius();
+	virtual void OnCollision(BaseEntity* entity);
+	virtual bool Intersects(Line<> line, float radius);
 };
 

@@ -1,4 +1,6 @@
 #include "BaseGame.h"
+#include "SpawnerEntity.h"
+#include "BaseFood.h"
 
 BaseGame* BaseGame::g_Instance = nullptr;
 
@@ -15,7 +17,22 @@ void BaseGame::Start() {
 }
 
 void BaseGame::UpdateView() {
-	
+	sf::View view;
+	view.setCenter(this->localSnake->position);
+	this->renderWindow.setView(view);
+}
+
+void BaseGame::ProcessCollision(BaseEntity* entity, Vec2f oldPosition) {
+	Line<> line = Line<float, Vec2f>(oldPosition, entity->position);
+	for (auto it2 = this->clientEntities.begin(); it2 != this->clientEntities.end(); ++it2) {
+		BaseEntity* entity2 = (*it2).second;
+		if (entity2 == entity || entity2->isKilled)
+			continue;
+		if (entity2->Intersects(line, entity->GetRadius())) {
+			entity->OnCollision(entity2);
+			entity2->OnCollisionWith(entity);
+		}
+	}
 }
 
 void BaseGame::Update(double deltaTime) {
@@ -34,14 +51,27 @@ void BaseGame::Update(double deltaTime) {
 	this->renderWindow.clear(sf::Color(0, 0, 0, 255));
 
 	for (auto it = this->clientEntities.begin(); it != this->clientEntities.end(); ++it) {
-		(*it).second->Update(deltaTime);
-		(*it).second->Draw(this->renderWindow);
+		BaseEntity* entity = (*it).second;
+		Vec2f prevPosition = entity->position;
+		entity->Update(deltaTime);
+		if (prevPosition != entity->position) {
+			this->ProcessCollision(entity, prevPosition);
+		}
+		entity->Draw(this->renderWindow);
 	}
 
-	sf::View view;
-	view.setCenter(this->localSnake->position);
-	this->renderWindow.setView(view);
-	
+	for (auto it = this->clientEntities.begin(); it != this->clientEntities.end(); ++it) {
+		BaseEntity* entity = (*it).second;
+		if (entity->isKilled) {
+			this->clientEntities.erase(it++);
+			delete entity;
+			if (it == this->clientEntities.end())
+				break;
+		}
+	}
+
+	this->UpdateView();
+	std::cout << "FPS " << (1.0 / deltaTime) << std::endl;
 	this->renderWindow.display();
 }
 
@@ -50,6 +80,17 @@ bool BaseGame::IsRunning() {
 }
 
 void BaseGame::OnCreated() {
+	SpawnerEntity* foodSpawner = new SpawnerEntity([](Vec2f position) -> BaseEntity* {
+		BaseFood* food = new BaseFood();
+		food->position = position;
+		food->SetAmount(2.f);
+		BaseGame::g_Instance->RegisterEntity(food);
+		return food;
+	}, 5.f, 1.f, 200.f);
+	foodSpawner->SpawnAll();
+	this->RegisterEntity(foodSpawner);
+
+
 	SnakeEntity* entity = new SnakeEntity();
 	entity->MakeLocal();
 	entity->position = sf::Vector2f(0.f, 0.f);
