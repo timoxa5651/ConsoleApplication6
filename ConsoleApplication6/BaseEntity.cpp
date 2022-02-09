@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 BaseEntity::BaseEntity() {
-	this->uid = 2 + rand() * rand();
+	this->uid = 2 + rand() * rand() * rand();
 	this->isKilled = false;
 	this->velocity = Vec2f();
 	this->position = Vec2f();
@@ -23,7 +23,7 @@ void BaseEntity::OnKeyPressed(sf::Keyboard::Key key) {
 
 }
 
-bool BaseEntity::Intersects(Line<> line, float radius) {
+bool BaseEntity::Intersects(Line<> line, float radius, Vec2f* hitPoint) {
 	return false;
 }
 

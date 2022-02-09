@@ -18,6 +18,10 @@ class SnakeEntity : public BaseEntity
 	bool isSprinting;
 	float nextFoodSpawnTime;
 
+	float lastEnemyTime;
+	Vec2f closestFoodPos;
+	float closestFoodTime;
+
 	std::deque<PosEntry> positionHistory;
 public:
 	double score;
@@ -25,7 +29,10 @@ public:
 
 	SnakeEntity();
 	void MakeLocal();
+	void MakeBot();
 	void AddScore(float scoreDelta);
+
+	void Bot_Update(float deltaTime);
 
 	virtual void Draw(sf::RenderWindow& wnd);
 	virtual void OnSpawned();
@@ -33,6 +40,6 @@ public:
 	virtual void Update(double deltaTime);
 	virtual float GetRadius();
 	virtual void OnCollision(BaseEntity* entity);
-	virtual bool Intersects(Line<> line, float radius);
+	virtual bool Intersects(Line<> line, float radius, Vec2f* hitPoint);
 };
 

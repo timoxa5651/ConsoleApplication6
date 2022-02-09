@@ -6,7 +6,7 @@ BaseGame* BaseGame::g_Instance = nullptr;
 
 void BaseGame::Start() {
 	this->renderWindow.create(sf::VideoMode(800, 800), "123");
-	this->renderWindow.setVerticalSyncEnabled(false);
+	//this->renderWindow.setVerticalSyncEnabled(false);
 	this->renderWindow.setPosition(sf::Vector2i(0, 0));
 	this->renderWindow.setActive(true);
 	this->renderWindow.setTitle("");
@@ -28,7 +28,7 @@ void BaseGame::ProcessCollision(BaseEntity* entity, Vec2f oldPosition) {
 		BaseEntity* entity2 = (*it2).second;
 		if (entity2 == entity || entity2->isKilled)
 			continue;
-		if (entity2->Intersects(line, entity->GetRadius())) {
+		if (entity2->Intersects(line, entity->GetRadius(), nullptr)) {
 			entity->OnCollision(entity2);
 			entity2->OnCollisionWith(entity);
 		}
@@ -50,6 +50,10 @@ void BaseGame::Update(double deltaTime) {
 	}
 	this->renderWindow.clear(sf::Color(0, 0, 0, 255));
 
+	std::vector<decltype(this->clientEntities)::iterator> deletedEntities;
+	deletedEntities.reserve(10);
+
+	Vec2f windowSize = this->renderWindow.getSize();
 	for (auto it = this->clientEntities.begin(); it != this->clientEntities.end(); ++it) {
 		BaseEntity* entity = (*it).second;
 		Vec2f prevPosition = entity->position;
@@ -57,21 +61,37 @@ void BaseGame::Update(double deltaTime) {
 		if (prevPosition != entity->position) {
 			this->ProcessCollision(entity, prevPosition);
 		}
-		entity->Draw(this->renderWindow);
+		bool isSnake = dynamic_cast<SnakeEntity*>(entity) == entity;
+		sf::Vector2i screenPoint = this->renderWindow.mapCoordsToPixel(entity->position);
+		float forgiviness = entity->GetRadius();
+		if (isSnake || (screenPoint.x >= -forgiviness && screenPoint.x <= windowSize.x + forgiviness && screenPoint.y >= -forgiviness && screenPoint.y <= windowSize.y + forgiviness)) {
+			entity->Draw(this->renderWindow);
+		}
+		if (entity->isKilled) {
+			deletedEntities.push_back(it);
+		}
 	}
 
-	for (auto it = this->clientEntities.begin(); it != this->clientEntities.end(); ++it) {
+	for (auto& it : deletedEntities) {
 		BaseEntity* entity = (*it).second;
 		if (entity->isKilled) {
-			this->clientEntities.erase(it++);
+			this->clientEntities.erase(it);
 			delete entity;
-			if (it == this->clientEntities.end())
-				break;
 		}
 	}
 
 	this->UpdateView();
-	std::cout << "FPS " << (1.0 / deltaTime) << std::endl;
+
+	while (fpsHistory.size() >= 10)
+		fpsHistory.pop_front();
+	fpsHistory.push_back(1.0 / deltaTime);
+
+	double sum = 0.0;
+	for (auto& it : this->fpsHistory)
+		sum += it;
+	std::string str = "FPS: " + std::to_string((long long)(sum / this->fpsHistory.size())) + " ENT: " + std::to_string(this->clientEntities.size());
+	this->renderWindow.setTitle(str);
+
 	this->renderWindow.display();
 }
 
@@ -86,7 +106,7 @@ void BaseGame::OnCreated() {
 		food->SetAmount(2.f);
 		BaseGame::g_Instance->RegisterEntity(food);
 		return food;
-	}, 5.f, 1.f, 200.f);
+	}, 100.f, 3.f, 500.f);
 	foodSpawner->SpawnAll();
 	this->RegisterEntity(foodSpawner);
 
@@ -96,6 +116,11 @@ void BaseGame::OnCreated() {
 	entity->position = sf::Vector2f(0.f, 0.f);
 	this->RegisterEntity(entity);
 	this->localSnake = entity;
+
+	SnakeEntity* enemySnake = new SnakeEntity();
+	enemySnake->position = sf::Vector2f(rand() / (double)RAND_MAX, rand() / (double)RAND_MAX) * 150.f;
+	enemySnake->MakeBot();
+	this->RegisterEntity(enemySnake);
 }
 
 void BaseGame::RegisterEntity(BaseEntity* entity) {

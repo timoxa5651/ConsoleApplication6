@@ -7,8 +7,8 @@ SpawnerEntity::SpawnerEntity(OnSpawnCallback onSpawn, float population, float sp
 	this->population = population;
 	this->nextUpdateTime = 0.f;
 	this->spawnPerTick = spawnPerTick;
-	this->updateRandom = 0.4f;
-	this->updateInterval = 1.f;
+	this->updateRandom = 0.2f;
+	this->updateInterval = 3.f;
 	this->zoneSize = zoneSize;
 	BaseEntity::BaseEntity();
 }
@@ -39,6 +39,25 @@ void SpawnerEntity::SpawnAll() {
 }
 
 void SpawnerEntity::Update(double deltaTime) {
+	SnakeEntity* snake = BaseGame::g_Instance->localSnake;
+	if (snake) {
+		sf::Vector2u size = BaseGame::g_Instance->renderWindow.getSize();
+		for (float x = snake->position.x - size.x; x < snake->position.x + size.x; x += this->zoneSize) {
+			for (float y = snake->position.y - size.y; y < snake->position.y + size.y; y += this->zoneSize) {
+				SpawnZone* zone = this->QueryZone(Vec2f(x, y));
+				if (!zone->hadEntities) {
+					while (zone->entities.size() < this->population) {
+						Vec2f entityPos = zone->position * SpawnerEntity::zoneSize;
+						entityPos += Vec2f(rand() / (double)RAND_MAX, rand() / (double)RAND_MAX) * SpawnerEntity::zoneSize;
+						BaseEntity* spawned = this->onSpawn(entityPos);
+						spawned->spawnZone = zone;
+						zone->EntityJoin(spawned);
+					}
+				}
+			}
+		}
+	}
+
 	if (this->onSpawn && Utils::Time() >= this->nextUpdateTime) {
 		for (auto& [x, xmap] : this->zones) {
 			for (auto& [y, zone] : xmap) {
@@ -46,19 +65,10 @@ void SpawnerEntity::Update(double deltaTime) {
 				while (zone->entities.size() < this->population && spawned < this->spawnPerTick) {
 					Vec2f entityPos = Vec2f(x, y) * SpawnerEntity::zoneSize;
 					entityPos += Vec2f(rand() / (double)RAND_MAX, rand() / (double)RAND_MAX) * SpawnerEntity::zoneSize;
-					BaseEntity* spawned = this->onSpawn(entityPos);
-					spawned->spawnZone = zone;
-					zone->EntityJoin(spawned);
-				}
-			}
-		}
-
-		SnakeEntity* snake = BaseGame::g_Instance->localSnake;
-		if (snake) {
-			sf::Vector2u size = BaseGame::g_Instance->renderWindow.getSize();
-			for (float x = snake->position.x - size.x; x < snake->position.x + size.x; x += this->zoneSize) {
-				for (float y = snake->position.y - size.y; y < snake->position.y + size.y; y += this->zoneSize) {
-					this->QueryZone(Vec2f(x, y));
+					BaseEntity* spawnedEnt = this->onSpawn(entityPos);
+					spawnedEnt->spawnZone = zone;
+					zone->EntityJoin(spawnedEnt);
+					spawned += 1;
 				}
 			}
 		}
@@ -67,7 +77,7 @@ void SpawnerEntity::Update(double deltaTime) {
 	}
 }
 
-bool SpawnerEntity::Intersects(Line<> line, float radius) {
+bool SpawnerEntity::Intersects(Line<> line, float radius, Vec2f* hitPoint) {
 	return true; // force trigger collision 
 }
 
@@ -85,6 +95,7 @@ SpawnZone* SpawnerEntity::CreateZone(Vec2<int> position) {
 	zone->position = position;
 	zone->entities = std::map<decltype(BaseEntity::uid), BaseEntity*>();
 	zone->ownerEntity = this;
+	zone->hadEntities = false;
 
 	auto& mp = this->zones[position.x];
 	mp[position.y] = zone;
@@ -111,6 +122,7 @@ bool SpawnZone::Contains(Vec2f point) {
 
 void SpawnZone::EntityJoin(BaseEntity* entity) {
 	this->entities[entity->uid] = entity;
+	this->hadEntities = true;
 }
 
 

@@ -11,14 +11,15 @@ class BaseGame
 {
 	bool wantsClose;
 
-	std::map<decltype(BaseEntity::uid), BaseEntity*> clientEntities;
-	
+	std::deque<double> fpsHistory;
+
 	void OnCreated();
 public:
 	static BaseGame* g_Instance;
 
 	sf::RenderWindow renderWindow;
 	SnakeEntity* localSnake;
+	std::map<decltype(BaseEntity::uid), BaseEntity*> clientEntities;
 
 	void Start();
 	void Update(double deltaTime);

@@ -3,6 +3,10 @@
 #include <iostream>
 #include "SFML/Graphics.hpp"
 
+#define M_PI_F 3.14159265358979323846f
+#define RAD2DEG(x) ((float)(x) * (float)(180.f / M_PI_F))
+#define DEG2RAD(x) ((float)(x) * (float)(M_PI_F / 180.f))
+
 static class Utils
 {
 	static __int64 startTime;
@@ -39,6 +43,13 @@ public:
 
 	Vec2 LerpTo(Vec2 b, float t) {
 		return Vec2(this->x + (b.x - this->x) * t, this->y + (b.y - this->y) * t);
+	}
+
+	Vec2 Rotate(P angle) {
+		Vec2 rotated_point;
+		rotated_point.x = this->x * cos(angle) - this->y * sin(angle);
+		rotated_point.y = this->x * sin(angle) + this->y * cos(angle);
+		return rotated_point;
 	}
 };
 

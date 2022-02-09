@@ -20,7 +20,7 @@ public:
 
 	virtual void OnCollision(BaseEntity* entity);
 	virtual void OnCollisionWith(BaseEntity* entity);
-	virtual bool Intersects(Line<> line, float radius);
+	virtual bool Intersects(Line<> line, float radius, Vec2f* hitPoint);
 	virtual float GetRadius();
 	virtual void OnKilled();
 };

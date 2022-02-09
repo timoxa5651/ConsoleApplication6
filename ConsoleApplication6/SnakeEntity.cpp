@@ -13,18 +13,26 @@ void SnakeEntity::OnSpawned() {
 }
 
 void SnakeEntity::MakeLocal() {
-	this->uid = 1;
+	this->uid = UINT_MAX - 1;
 	this->isLocal = true;
 	this->desiredMoveSpeed = this->moveSpeed = 150.f;
 	this->thickness = 7.5f;
 	this->desiredVelocity = Vec2f(0, 0);
-	this->AddScore(200.f);
+	this->AddScore(30.f);
+}
+
+void SnakeEntity::MakeBot() {
+	this->uid = UINT_MAX - 2;
+	this->isLocal = false;
+	this->desiredMoveSpeed = this->moveSpeed = 100.f;
+	this->thickness = 7.5f;
+	this->desiredVelocity = Vec2f(1, 0);
+	this->lastEnemyTime = 0.f;
+	this->AddScore(50.f);
 }
 
 void SnakeEntity::OnKeyPressed(sf::Keyboard::Key key) {
-	if (this->isLocal) {
-
-	}
+	
 }
 
 void SnakeEntity::AddScore(float scoreDelta) {
@@ -48,23 +56,94 @@ void SnakeEntity::AddScore(float scoreDelta) {
 	}
 }
 
+void SnakeEntity::Bot_Update(float deltaTime) {
+	SnakeEntity* localSnake = BaseGame::g_Instance->localSnake;
+	bool velocityUpdated = false;
+	if (localSnake) {
+		Line<> raycast = Line<>(this->position, this->position + this->velocity.Normalized() * 30.f);
+		Vec2f hitPoint;
+		Vec2f rot = this->velocity.Normalized();
+		int num = 0;
+		constexpr int step = 10;
+		while (num < 360 && localSnake->Intersects(raycast, this->GetRadius(), &hitPoint)) {
+			num += step;
+			rot = this->velocity.Normalized().Rotate(DEG2RAD(num));
+			raycast = Line<>(this->position, this->position + rot * 30.f);
+		}
+
+		if (num > 0 && num < 360) {
+			velocityUpdated = true;
+			this->desiredVelocity = rot;
+		}
+		else if (num > 0) {
+			velocityUpdated = true;
+		}
+
+		if (num > 0) {
+			this->lastEnemyTime = Utils::Time();
+		}
+	}
+
+	if (!velocityUpdated && localSnake && Utils::Time() - this->lastEnemyTime >= 0.5f) {
+		if (this->score > 2000.f) {
+			// attack
+			float dist = Vec2f(this->position - localSnake->position).Length();
+			Line<> forward = Line<>(this->position, localSnake->position);
+		}
+		else {
+			Vec2f closestFood = this->closestFoodPos;
+			if (Utils::Time() - this->closestFoodTime > 1.f) {
+				bool flag = false;
+				for (auto it = BaseGame::g_Instance->clientEntities.begin(); it != BaseGame::g_Instance->clientEntities.end(); ++it) {
+					BaseEntity* entity = (*it).second;
+					if (entity->isKilled)
+						continue;
+					BaseFood* food = dynamic_cast<BaseFood*>(entity);
+					if (food && (!flag || Vec2f(food->position - this->position).Length() < Vec2f(closestFood - this->position).Length())) {
+						closestFood = food->position;
+						flag = true;
+					}
+				}
+				this->closestFoodPos = closestFood;
+				this->closestFoodTime = Utils::Time();
+			}
+			
+			this->desiredVelocity = closestFood - this->position;
+		}
+	}
+
+	bool shouldSprint = this->score > 30 && Utils::Time() - this->lastEnemyTime < 2.f;
+	if (shouldSprint) {
+		this->desiredMoveSpeed = 250.f;
+	}
+	else {
+		this->desiredMoveSpeed = 100.f;
+	}
+}
+
 void SnakeEntity::Update(double deltaTime) {
 	sf::RenderWindow& wnd = BaseGame::g_Instance->renderWindow;
 	//std::cout << deltaTime << std::endl;
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && this->score > 50) {
-		this->desiredMoveSpeed = 300.f;
-		this->isSprinting = true;
+	if (this->isLocal) {
+		if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && this->score > 30) {
+			this->desiredMoveSpeed = 300.f;
+			this->isSprinting = true;
+		}
+		else {
+			this->desiredMoveSpeed = 150.f;
+			this->isSprinting = false;
+		}
 	}
 	else {
-		this->desiredMoveSpeed = 150.f;
-		this->isSprinting = false;
+		this->Bot_Update(deltaTime);
 	}
 	this->moveSpeed += (this->desiredMoveSpeed - this->moveSpeed) * 0.25f;
 
 	Vec2<int> center = Vec2f(wnd.getSize()) * 0.5f;
 	Vec2f wndCenter = wnd.mapPixelToCoords(center);
 
-	this->desiredVelocity = Vec2f(wnd.mapPixelToCoords(sf::Mouse::getPosition(wnd))) - this->position;
+	if (this->isLocal)
+		this->desiredVelocity = Vec2f(wnd.mapPixelToCoords(sf::Mouse::getPosition(wnd))) - this->position;
 
 	if (this->desiredVelocity.Length())
 		this->velocity = this->velocity.LerpTo(this->desiredVelocity.Normalized() * this->moveSpeed, 1.f);
@@ -96,6 +175,8 @@ void SnakeEntity::Draw(sf::RenderWindow& wnd) {
 	sf::CircleShape sh;
 	sh.setRadius(this->thickness);
 	sh.setFillColor(sf::Color(255, 255, 255));
+	if(!this->isLocal)
+		sh.setFillColor(sf::Color(255, 0, 0, 200));
 	for (auto it = this->positionHistory.begin(); it != this->positionHistory.end(); ++it) {
 		if (it == this->positionHistory.end() - 1)
 			sh.setFillColor(sf::Color(0, 0, 255));
@@ -105,10 +186,13 @@ void SnakeEntity::Draw(sf::RenderWindow& wnd) {
 	}
 }
 
-bool SnakeEntity::Intersects(Line<> line, float radius) {
+bool SnakeEntity::Intersects(Line<> line, float radius, Vec2f* hitPoint) {
 	for (auto it = this->positionHistory.begin(); it != this->positionHistory.end(); ++it) {
 		Vec2f pos = (*it).position;
-		if (Vec2f(line.ClosestPoint(pos) - pos).Length() <= this->thickness + radius) {
+		Vec2f clos = line.ClosestPoint(pos);
+		if (Vec2f(clos - pos).Length() <= this->thickness + radius) {
+			if(hitPoint)
+				*hitPoint = clos;
 			return true;
 		}
 	}
@@ -117,10 +201,16 @@ bool SnakeEntity::Intersects(Line<> line, float radius) {
 
 void SnakeEntity::OnCollision(BaseEntity* entity) {
 	BaseFood* food = dynamic_cast<BaseFood*>(entity);
-	if (food)
-	{
+	if (food) {
 		this->AddScore(food->GetAmount());
 		food->OnKilled();
+		this->closestFoodTime = 0.f;
+		return;
+	}
+	SnakeEntity* snake = dynamic_cast<SnakeEntity*>(entity);
+	if (snake) {
+		std::cout << this->isLocal << " collided with " << snake->isLocal << std::endl;
+		//this->OnKilled();
 		return;
 	}
 }

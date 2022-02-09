@@ -18,9 +18,10 @@ int main()
 	BaseGame::g_Instance->Start();
 	double lastUpdateTime = Utils::Time();
 	while (BaseGame::g_Instance->IsRunning()) {
-		BaseGame::g_Instance->Update(Utils::Time() - lastUpdateTime);
-		lastUpdateTime = Utils::Time();
-		std::this_thread::sleep_for(std::chrono::microseconds(500));
+		double nextUpdateTime = Utils::Time();
+		BaseGame::g_Instance->Update(nextUpdateTime - lastUpdateTime);
+		lastUpdateTime = nextUpdateTime;
+		//std::this_thread::sleep_for(std::chrono::microseconds(100));
 	}
 	return 0;
 }

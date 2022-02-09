@@ -8,6 +8,7 @@ public:
 	class SpawnerEntity* ownerEntity;
 	Vec2f position;
 	std::map<decltype(BaseEntity::uid), BaseEntity*> entities;
+	bool hadEntities;
 
 	bool Contains(Vec2f point);
 	void EntityExit(BaseEntity* entity);
@@ -35,7 +36,7 @@ public:
 
 	virtual void OnSpawned();
 	virtual void Update(double deltaTime);
-	virtual bool Intersects(Line<> line, float radius);
+	virtual bool Intersects(Line<> line, float radius, Vec2f* point);
 	virtual void OnCollisionWith(BaseEntity* entity);
 };
 

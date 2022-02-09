@@ -1,5 +1,6 @@
 #include "BaseFood.h"
 #include "BaseGame.h"
+#include "SpawnerEntity.h"
 
 BaseFood::BaseFood() {
     this->amount = 0.f;
@@ -8,8 +9,10 @@ BaseFood::BaseFood() {
 }
 
 void BaseFood::OnSpawned() {
-    BaseGame::g_Instance->ProcessCollision(this, this->position);
-
+   //BaseGame::g_Instance->ProcessCollision(this, this->position);
+    if (this->spawnZone) {
+        this->spawnZone->ownerEntity->OnCollisionWith(this);
+    }
 }
 void BaseFood::Update(double deltaTime) {
 
@@ -58,10 +61,17 @@ void BaseFood::Draw(sf::RenderWindow& wnd) {
     wnd.draw(sprite);
 }
 
-bool BaseFood::Intersects(Line<> line, float radius) {
-    return Vec2f(line.ClosestPoint(this->position) - this->position).Length() <= radius + this->GetRadius();
+bool BaseFood::Intersects(Line<> line, float radius, Vec2f* hitPoint) {
+    Vec2f point = line.ClosestPoint(this->position);
+    if (hitPoint)
+        *hitPoint = point;
+    return Vec2f(point - this->position).Length() <= radius + this->GetRadius();
 }
 
 float BaseFood::GetRadius() {
     return std::min(this->amount * 3.f, 12.f);
+}
+
+void BaseFood::OnKilled() {
+    BaseEntity::OnKilled();
 }
