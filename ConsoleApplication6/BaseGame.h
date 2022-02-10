@@ -10,8 +10,10 @@
 class BaseGame
 {
 	bool wantsClose;
-
 	std::deque<double> fpsHistory;
+	sf::Font arialFont;
+	float lastEnemyTime;
+	float lastLocalScore;
 
 	void OnCreated();
 public:
@@ -19,6 +21,7 @@ public:
 
 	sf::RenderWindow renderWindow;
 	SnakeEntity* localSnake;
+	SnakeEntity* enemySnake;
 	std::map<decltype(BaseEntity::uid), BaseEntity*> clientEntities;
 
 	void Start();

@@ -41,5 +41,6 @@ public:
 	virtual float GetRadius();
 	virtual void OnCollision(BaseEntity* entity);
 	virtual bool Intersects(Line<> line, float radius, Vec2f* hitPoint);
+	virtual void OnKilled();
 };
 

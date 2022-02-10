@@ -13,13 +13,26 @@ void BaseGame::Start() {
 	this->renderWindow.setVisible(true);
 	this->wantsClose = false;
 
+	this->arialFont.loadFromFile("arial.ttf");
+
 	this->OnCreated();
 }
 
 void BaseGame::UpdateView() {
-	sf::View view;
-	view.setCenter(this->localSnake->position);
-	this->renderWindow.setView(view);
+	if (this->localSnake) {
+		sf::View view;
+		view.setCenter(this->localSnake->position);
+		this->renderWindow.setView(view);
+
+		sf::Text label;
+		label.setFont(this->arialFont);
+		label.setString("SCORE: " + std::to_string((__int64)this->localSnake->score));
+		label.setCharacterSize(16);
+		Vec2f size = this->renderWindow.getSize();
+		Vec2f top = this->renderWindow.mapPixelToCoords(sf::Vector2i(size.x - label.getLocalBounds().width, 0));
+		label.setPosition(top);
+		this->renderWindow.draw(label);
+	}
 }
 
 void BaseGame::ProcessCollision(BaseEntity* entity, Vec2f oldPosition) {
@@ -53,14 +66,26 @@ void BaseGame::Update(double deltaTime) {
 	std::vector<decltype(this->clientEntities)::iterator> deletedEntities;
 	deletedEntities.reserve(10);
 
+	bool shouldUpdate = this->localSnake != nullptr;
+	if (shouldUpdate) {
+		this->lastLocalScore = this->localSnake->score;
+	}
+
 	Vec2f windowSize = this->renderWindow.getSize();
 	for (auto it = this->clientEntities.begin(); it != this->clientEntities.end(); ++it) {
 		BaseEntity* entity = (*it).second;
-		Vec2f prevPosition = entity->position;
-		entity->Update(deltaTime);
-		if (prevPosition != entity->position) {
-			this->ProcessCollision(entity, prevPosition);
+		if (entity->isKilled) {
+			deletedEntities.push_back(it);
+			continue;
 		}
+		if (shouldUpdate) {
+			Vec2f prevPosition = entity->position;
+			entity->Update(deltaTime);
+			if (prevPosition != entity->position) {
+				this->ProcessCollision(entity, prevPosition);
+			}
+		}
+
 		bool isSnake = dynamic_cast<SnakeEntity*>(entity) == entity;
 		sf::Vector2i screenPoint = this->renderWindow.mapCoordsToPixel(entity->position);
 		float forgiviness = entity->GetRadius();
@@ -75,6 +100,11 @@ void BaseGame::Update(double deltaTime) {
 	for (auto& it : deletedEntities) {
 		BaseEntity* entity = (*it).second;
 		if (entity->isKilled) {
+			if (entity == this->localSnake) {
+				this->localSnake = nullptr;
+			}
+			else if (entity == this->enemySnake)
+				this->enemySnake = nullptr;
 			this->clientEntities.erase(it);
 			delete entity;
 		}
@@ -82,9 +112,32 @@ void BaseGame::Update(double deltaTime) {
 
 	this->UpdateView();
 
+	if (!this->enemySnake && this->localSnake && Utils::Time() - this->lastEnemyTime >= 5.f) {
+		SnakeEntity* enemySnake = new SnakeEntity();
+		enemySnake->position = this->localSnake->position + sf::Vector2f(300.f + (rand() % 1000) / 10.0, 300.f + (rand() % 1000) / 10.0);
+		enemySnake->MakeBot();
+		this->RegisterEntity(enemySnake);
+		this->enemySnake = enemySnake;
+	}
+	else if (this->enemySnake) {
+		this->lastEnemyTime = Utils::Time();
+	}
+
+	if (!this->localSnake) {
+		sf::Text label;
+		label.setFont(this->arialFont);
+		label.setString("GAME OVER. YOUR SCORE: " + std::to_string((__int64)this->lastLocalScore));
+		label.setCharacterSize(36);
+		Vec2f size = this->renderWindow.getSize();
+		Vec2f tsize = Vec2f(label.getLocalBounds().width, label.getLocalBounds().height);
+		Vec2f top = this->renderWindow.mapPixelToCoords(sf::Vector2i(Vec2f(size / 2.f) - tsize / 2.f));
+		label.setPosition(top);
+		this->renderWindow.draw(label);
+	}
+
 	while (fpsHistory.size() >= 10)
 		fpsHistory.pop_front();
-	fpsHistory.push_back(1.0 / deltaTime);
+	fpsHistory.push_back(deltaTime > 0 ? (1.0 / deltaTime) : 1000);
 
 	double sum = 0.0;
 	for (auto& it : this->fpsHistory)
@@ -106,7 +159,7 @@ void BaseGame::OnCreated() {
 		food->SetAmount(2.f);
 		BaseGame::g_Instance->RegisterEntity(food);
 		return food;
-	}, 100.f, 3.f, 500.f);
+		}, 100.f, 3.f, 500.f);
 	foodSpawner->SpawnAll();
 	this->RegisterEntity(foodSpawner);
 
@@ -116,11 +169,6 @@ void BaseGame::OnCreated() {
 	entity->position = sf::Vector2f(0.f, 0.f);
 	this->RegisterEntity(entity);
 	this->localSnake = entity;
-
-	SnakeEntity* enemySnake = new SnakeEntity();
-	enemySnake->position = sf::Vector2f(rand() / (double)RAND_MAX, rand() / (double)RAND_MAX) * 150.f;
-	enemySnake->MakeBot();
-	this->RegisterEntity(enemySnake);
 }
 
 void BaseGame::RegisterEntity(BaseEntity* entity) {

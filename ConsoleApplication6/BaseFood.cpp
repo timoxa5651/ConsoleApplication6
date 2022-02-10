@@ -10,12 +10,13 @@ BaseFood::BaseFood() {
 
 void BaseFood::OnSpawned() {
    //BaseGame::g_Instance->ProcessCollision(this, this->position);
+    this->velocity = Vec2f(0, 0);
     if (this->spawnZone) {
         this->spawnZone->ownerEntity->OnCollisionWith(this);
     }
 }
 void BaseFood::Update(double deltaTime) {
-
+    BaseEntity::Update(deltaTime);
 }
 
 void BaseFood::SpawnAt(Vec2f position, float amount) {

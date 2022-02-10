@@ -83,12 +83,28 @@ void SnakeEntity::Bot_Update(float deltaTime) {
 			this->lastEnemyTime = Utils::Time();
 		}
 	}
+	
 
+	bool canSprint = this->score > 30;
+	bool sprintUpdated = false;
+	bool shouldSprint = canSprint && this->isSprinting;
 	if (!velocityUpdated && localSnake && Utils::Time() - this->lastEnemyTime >= 0.5f) {
-		if (this->score > 2000.f) {
+		float dist = Vec2f(this->position - localSnake->position).Length();
+		float requiredDist = (this->score > 250.f) ? 300.f : 500.f;
+		if (dist > requiredDist) {
+			this->desiredVelocity = localSnake->position - this->position;
+			if (canSprint) {
+				sprintUpdated = true;
+				shouldSprint = true;
+			}
+		}
+		else if (this->score > 250.f) {
 			// attack
-			float dist = Vec2f(this->position - localSnake->position).Length();
-			Line<> forward = Line<>(this->position, localSnake->position);
+			//float dist = Vec2f(this->position - localSnake->position).Length();
+			//Line<> forward = Line<>(this->position, localSnake->position);
+			this->desiredVelocity = localSnake->position + localSnake->velocity.Normalized() * 10.f - this->position;
+			sprintUpdated = true;
+			shouldSprint = dist > 40.f;
 		}
 		else {
 			Vec2f closestFood = this->closestFoodPos;
@@ -107,17 +123,20 @@ void SnakeEntity::Bot_Update(float deltaTime) {
 				this->closestFoodPos = closestFood;
 				this->closestFoodTime = Utils::Time();
 			}
-			
+			shouldSprint = canSprint;
+			sprintUpdated = true;
+
 			this->desiredVelocity = closestFood - this->position;
 		}
 	}
 
-	bool shouldSprint = this->score > 30 && Utils::Time() - this->lastEnemyTime < 2.f;
+	if(!sprintUpdated && canSprint)
+		shouldSprint = Utils::Time() - this->lastEnemyTime < 2.f;
 	if (shouldSprint) {
-		this->desiredMoveSpeed = 250.f;
+		this->desiredMoveSpeed = 305.f;
 	}
 	else {
-		this->desiredMoveSpeed = 100.f;
+		this->desiredMoveSpeed = 155.f;
 	}
 }
 
@@ -210,9 +229,23 @@ void SnakeEntity::OnCollision(BaseEntity* entity) {
 	SnakeEntity* snake = dynamic_cast<SnakeEntity*>(entity);
 	if (snake) {
 		std::cout << this->isLocal << " collided with " << snake->isLocal << std::endl;
-		//this->OnKilled();
+		this->OnKilled();
 		return;
 	}
+}
+
+void SnakeEntity::OnKilled() {
+	double delta = this->score / this->positionHistory.size();
+	double pending = 0;
+	for (auto it = this->positionHistory.begin(); it != this->positionHistory.end(); ++it) {
+		pending += delta;
+		if (pending > 10.f) {
+			BaseFood::SpawnAt((*it).position, 10.f);
+			pending -= 10.f;
+		}
+	}
+	BaseFood::SpawnAt((*this->positionHistory.rbegin()).position, pending);
+	BaseEntity::OnKilled();
 }
 
 float SnakeEntity::GetRadius() {
