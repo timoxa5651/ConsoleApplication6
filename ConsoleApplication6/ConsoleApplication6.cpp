@@ -165,7 +165,7 @@ int main()
 	//list->InsertBefore(list->InsertFirst(7), 6);
 	//list->InsertAfter(list->InsertAfter(list->InsertFirst(7), 8), 8);
 	//list->InsertBefore(list->InsertFirst(6), 7);
-	//list->InsertBefore(list->InsertFirst(9), 5);
+	list->InsertBefore(list->InsertFirst(9), 5);
 	
 	for (int i = 1; i <= 10; ++i)
 		list->InsertFirst(rand());
@@ -179,8 +179,15 @@ int main()
 
 	list->Sort(std::greater<int>());
 
+	Node<int>* it2 = nullptr;
 	for (auto it = list->begin(); it != list->end(); it = it->walk()) {
 		cout << it->data << " ";
+		it2 = it;
+	}
+	cout << endl;
+	while(it2) {
+		cout << it2->data << " ";
+		it2 = it2->prev;
 	}
 	cout << endl;
 
