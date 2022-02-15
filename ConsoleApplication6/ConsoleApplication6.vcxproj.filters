@@ -62,5 +62,8 @@
     <ClInclude Include="fmt\args.h">
       <Filter>Файлы заголовков\fmt</Filter>
     </ClInclude>
+    <ClInclude Include="list.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
