@@ -64,7 +64,7 @@ void SnakeEntity::Bot_Update(float deltaTime) {
 		Vec2f hitPoint;
 		Vec2f rot = this->velocity.Normalized();
 		int num = 0;
-		constexpr int step = 10;
+		constexpr int step = 1;
 		while (num < 360 && localSnake->Intersects(raycast, this->GetRadius(), &hitPoint)) {
 			num += step;
 			rot = this->velocity.Normalized().Rotate(DEG2RAD(num));

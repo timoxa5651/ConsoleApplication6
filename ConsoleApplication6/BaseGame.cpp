@@ -159,7 +159,7 @@ void BaseGame::OnCreated() {
 		food->SetAmount(2.f);
 		BaseGame::g_Instance->RegisterEntity(food);
 		return food;
-		}, 100.f, 3.f, 500.f);
+	}, 100.f, 3.f, 500.f);
 	foodSpawner->SpawnAll();
 	this->RegisterEntity(foodSpawner);
 

@@ -83,8 +83,12 @@ bool SpawnerEntity::Intersects(Line<> line, float radius, Vec2f* hitPoint) {
 
 void SpawnerEntity::OnCollisionWith(BaseEntity* entity) {
 	if (entity && entity->spawnZone && !entity->spawnZone->Contains(entity->position)) {
-		if(entity->spawnZone)
+		if (entity->spawnZone) {
 			entity->spawnZone->EntityExit(entity);
+			if (entity->spawnZone->moveableCount < 0) {
+				this->DestroyZone(entity->spawnZone);
+			}
+		}
 		entity->spawnZone = this->QueryZone(entity->position);
 		entity->spawnZone->EntityJoin(entity);
 	}
@@ -102,6 +106,12 @@ SpawnZone* SpawnerEntity::CreateZone(Vec2<int> position) {
 	return zone;
 }
 
+void SpawnerEntity::DestroyZone(SpawnZone* zone) {
+	for (auto& [j, ent] : zone->entities) {
+		ent->OnKilled();
+	}
+	delete zone;
+}
 SpawnZone* SpawnerEntity::QueryZone(Vec2f position) {
 	Vec2<int> cord = Vec2<int>(floor(position.x / this->zoneSize), floor(position.y / this->zoneSize));
 	auto it = this->zones.find(cord.x);
@@ -123,6 +133,10 @@ bool SpawnZone::Contains(Vec2f point) {
 void SpawnZone::EntityJoin(BaseEntity* entity) {
 	this->entities[entity->uid] = entity;
 	this->hadEntities = true;
+	SnakeEntity* snake = dynamic_cast<SnakeEntity*>(entity);
+	if (snake) {
+		this->moveableCount += 1;
+	}
 }
 
 
@@ -130,4 +144,8 @@ void SpawnZone::EntityExit(BaseEntity* entity) {
 	auto it = this->entities.find(entity->uid);
 	if (it != this->entities.end())
 		this->entities.erase(it);
+	SnakeEntity* snake = dynamic_cast<SnakeEntity*>(entity);
+	if (snake) {
+		this->moveableCount -= 1;
+	}
 }
