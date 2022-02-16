@@ -155,6 +155,8 @@ public:
 			}
 		}
 		if (!rd) {
+			if (this->str[st] == '-')
+				throw ReadExpection(this->off, "Only positive numbers are allowed");
 			throw ReadExpection(this->off, "Number expected");
 		}
 		for (int i = st; rd; ++i, rd /= 10) {
@@ -190,11 +192,14 @@ class Polynomial {
 	Polynomial(Stream source);
 	~Polynomial();
 	void try_parse();
+	void simplify();
 	Op_Sign parser_read_sign(bool first);
 
 	Stream initial_stream;
-public:	
+public:
 	List<Term*>* terms;
+
+	string to_string();
 
 	static Polynomial* parse(sf::String source);
 };
@@ -223,6 +228,7 @@ Polynomial* Polynomial::parse(sf::String source) {
 		delete poly;
 		return nullptr;
 	}
+	poly->simplify();
 	return poly;
 }
 
@@ -247,11 +253,17 @@ void Polynomial::try_parse() {
 		if (next_sign == Op_Sign::Minus) {
 			coeff *= -1;
 		}
+		this->initial_stream.read_while(' ');
 
 		term->coeff = coeff;
 		bool had_nums = false;
+		bool had_last = false;
 		while (this->initial_stream.get_cur() < this->initial_stream.get_size() && !(this->initial_stream.peek_char() == '-' || this->initial_stream.peek_char() == '+')) { // read chars
 			this->initial_stream.read_while(' ');
+
+			if (had_last) {
+				throw ReadExpection(this->initial_stream.get_cur(), "Term without power should be the last one");
+			}
 
 			char chr = this->initial_stream.read_char();
 			if (chr < 'a' || chr > 'z') {
@@ -263,11 +275,18 @@ void Polynomial::try_parse() {
 			}
 			this->initial_stream.read_while(' '); // x       ^2...
 
-			this->initial_stream.read_expect({ '^' }, "Expected \'^\'");
+			int num = 1;
+			if (this->initial_stream.peek_char() == '^') {
+				this->initial_stream.read_expect({ '^' }, "Expected \'^\'");
 
-			this->initial_stream.read_while(' '); // x^       2...
+				this->initial_stream.read_while(' '); // x^       2...
 
-			int num = this->initial_stream.get_num(this->initial_stream.get_cur(), true);
+				num = this->initial_stream.get_num(this->initial_stream.get_cur(), true);
+			}
+			else {
+				had_last = true;
+			}
+
 			term->vars.insert({ chr, num });
 
 			this->initial_stream.read_while(' ');
@@ -280,6 +299,104 @@ void Polynomial::try_parse() {
 
 		this->terms->InsertFirst(term.release());
 	}
+
+	if (!this->terms->size) {
+		throw ReadExpection(0, "No terms found");
+	}
+}
+
+void Polynomial::simplify() {
+	for (auto it = this->terms->begin(); it != this->terms->end(); it = it->next) {
+		for (auto it2 = this->terms->begin(); it2 != this->terms->end(); it2 = it2->next) {
+			if (it2 == it)
+				continue;
+			bool flag = it->data->vars == it2->data->vars;
+			if (flag) {
+				it->data->coeff += it2->data->coeff;
+
+				auto pnext = it2->next;
+				this->terms->Delete(it2);
+				it2 = pnext ? pnext->prev : nullptr;
+				if (!it2)
+					break;
+			}
+		}
+	}
+
+	bool has_nonzero = false;
+	for (auto it = this->terms->begin(); it != this->terms->end(); it = it->next) {
+		if (abs(it->data->coeff) > 0)
+			has_nonzero = true;
+	}
+	for (auto it = this->terms->begin(); it != this->terms->end(); it = it->next) {
+		if (it->data->coeff == 0) {
+			it->data->vars.clear();
+			if (has_nonzero) {
+				auto pn = it->next;
+				this->terms->Delete(it);
+				it = pn->prev;
+				if (!it)
+					it = this->terms->begin();
+			}
+		}
+	}
+
+	this->terms->Sort([](Term* lhs, Term* rhs) {
+		if (lhs->vars.empty())
+			return true;
+		else if (rhs->vars.empty())
+			return false;
+		auto mxa = max_element(lhs->vars.begin(), lhs->vars.end(), [](auto& p1, auto& p2) {return p1.second > p2.second; });
+		auto mxb = max_element(rhs->vars.begin(), rhs->vars.end(), [](auto& p1, auto& p2) {return p1.second > p2.second; });
+		if ((*mxa).second == (*mxb).second)
+			return abs(lhs->coeff) < abs(rhs->coeff);
+		return (*mxa).second < (*mxb).second;
+	});
+}
+
+string Polynomial::to_string() {
+	string s = "";
+	for (auto it = this->terms->begin(); it != this->terms->end(); it = it->next) {
+		char buffer[128];
+		sprintf_s(buffer, "%g", abs(it->data->coeff));
+		string impl = string(buffer);
+		if (abs(it->data->coeff) == 1) {
+			impl = "";
+		}
+
+		vector<pair<char, int>> smp;
+
+		for (auto [d, p] : it->data->vars) {
+			smp.push_back({ d, p });
+		}
+		sort(smp.begin(), smp.end(), [](auto& p1, auto& p2) { return p1.second > p2.second; });
+		for (auto [d, p] : smp) {
+			if (p == 1) {
+				impl += (char)d;
+			}
+			else {
+				impl += (char)d + string("^") + std::to_string(p);
+			}
+		}
+
+		if (it->prev) {
+			if (it->data->coeff < 0) {
+				s += " - " + impl;
+			}
+			else {
+				s += " + " + impl;
+			}
+		}
+		else {
+			if (it->data->coeff < 0) {
+				s += "-" + impl;
+			}
+			else {
+				s += impl;
+			}
+		}
+	}
+	return s;
 }
 
 Op_Sign Polynomial::parser_read_sign(bool first) {
@@ -311,47 +428,17 @@ class WndClass {
 	RenderWindow* wnd;
 	Vector2f size;
 
-	String current_text;
-	bool button_state;
-
+	List<Polynomial*>* polys;
 public:
 	WndClass(RenderWindow* wnd, Vector2f size) {
 		this->wnd = wnd;
 		this->size = size;
-		this->button_state = 0;
+		this->polys = new List<Polynomial*>();
 	}
 
-	void do_buttons() {
-		Vector2f button_pos = Vector2f(250, 150);
-		Vector2f button_size = Vector2f(25, 25);
-
-		Text text;
-		text.setFont(g_Font);
-		text.setCharacterSize(18);
-		text.setFillColor(Color(255, 255, 255, 255));
-		text.setString("Disabled = 1st, Enabled = 2nd");
-		text.setPosition(button_pos + Vector2f(button_size.x * 3, 0));
-		this->wnd->draw(text);
-
-		RectangleShape rect(button_size);
-		rect.setPosition(button_pos);
-		rect.setOutlineColor(Color(0, 0, 0, 255));
-		rect.setOutlineThickness(2.f);
-		rect.setFillColor(Color(90, 90, 90, 255));
-		this->wnd->draw(rect);
-		if (this->button_state) {
-			RectangleShape rect(button_size / 2.f);
-			rect.setPosition(button_pos + button_size / 4.f);
-			rect.setFillColor(Color(0, 0, 0, 255));
-			this->wnd->draw(rect);
-		}
-	}
-
-	void frame() {
-		this->do_buttons();
-
-		Vector2f field_size = Vector2f(500, 400);
-		Vector2f field_pos = Vector2(this->size.x / 2 - field_size.x / 2, this->size.y / 2 - field_size.y / 2);
+	void draw_poly_list() {
+		Vector2f field_size = Vector2f(200, this->size.y);
+		Vector2f field_pos = Vector2f(0, 0);
 
 		RectangleShape rect(field_size);
 		rect.setPosition(field_pos);
@@ -360,6 +447,11 @@ public:
 		rect.setFillColor(Color(90, 90, 90, 255));
 		this->wnd->draw(rect);
 
+		for(this->)
+	}
+
+	void frame() {
+		this->draw_poly_list();
 		Text text;
 		text.setFont(g_Font);
 		text.setCharacterSize(20);
@@ -367,16 +459,11 @@ public:
 		text.setString("[None]");
 		text.setPosition(Vector2f(250 + 60, 150 + 400 + 70));
 
-
 	}
 
 
 	void on_mousedown(Vector2f pos) {
-		Vector2f button_pos = Vector2f(250, 150);
-		Vector2f button_size = Vector2f(25, 25);
-		if (Rect(button_pos, button_size).contains(pos)) {
-			this->button_state = !this->button_state;
-		}
+		
 	}
 
 	void on_mouseup(Vector2f pos) {
@@ -384,48 +471,15 @@ public:
 	}
 
 	void text_entered(Event evnt) {
-		if (evnt.text.unicode == 8) { // backspace
-			this->current_text = this->current_text.substring(0, this->current_text.getSize() - 1);
-		}
-		else if (evnt.text.unicode) {
-			this->current_text += evnt.text.unicode;
-		}
+		
 	}
 };
 
 int main()
 {
-	String tests[] = {
-		String("-9+17x^3z^9-19z^2+0-x^2"), // 
-	};
-	int num = 1;
-	for (String s : tests) {
-		try {
-			Polynomial* nom = Polynomial::parse(s);
-			cout << "Test " << num << ": OK (" << nom->terms->size << ")" << endl;
-			int idx = 1;
-			for (auto it = nom->terms->begin(); it != nullptr; it = it->next) {
-				cout << "   Term " << idx++ << endl;
-				cout << "   --- Coeff " << it->data->coeff << endl;
 
-				for (auto [d, p] : it->data->vars) {
-					cout << "   --- " << d << " : " << p << endl;
-				}
-			}
-		}
-		catch (ReadExpection& ex) {
-			cout << "Test " << num << ": Fail (" << ex.what() << ")" << endl;
-		}
-		catch (...) {
-			cout << "Test " << num << ": Fail (Generic)" << endl;
-		}
-		++num;
-	}
-
-	cin.get();
-
-	RenderWindow window(VideoMode(800, 800), "123");
-	WndClass* wnd = new WndClass(&window, Vector2f(800, 800));
+	RenderWindow window(VideoMode(600, 900), "123");
+	WndClass* wnd = new WndClass(&window, Vector2f(600, 900));
 
 	g_Font.loadFromFile("arial.ttf");
 
@@ -451,7 +505,7 @@ int main()
 				wnd->text_entered(event);
 			}
 		}
-		window.clear(Color(30, 30, 30, 255));
+		window.clear(Color(200, 200, 200, 255));
 
 		wnd->frame();
 
