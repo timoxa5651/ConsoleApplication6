@@ -334,6 +334,8 @@ void Polynomial::simplify() {
 			if (has_nonzero) {
 				auto pn = it->next;
 				this->terms->Delete(it);
+				if (!pn)
+					break;
 				it = pn->prev;
 				if (!it)
 					it = this->terms->begin();
@@ -341,13 +343,28 @@ void Polynomial::simplify() {
 		}
 	}
 
+	for (auto it = this->terms->begin(); it != this->terms->end(); it = it->next) {
+		bool flag = false;
+		do {
+			flag = false;
+			for (auto it2 = it->data->vars.begin(); it2 != it->data->vars.end(); ++it2) {
+				auto [d, p] = *it2;
+				if (p == 0) {
+					it->data->vars.erase(it2++);
+					flag = true;
+					break;
+				}
+			}
+		} while (flag);
+	}
+
 	this->terms->Sort([](Term* lhs, Term* rhs) {
 		if (lhs->vars.empty())
 			return true;
 		else if (rhs->vars.empty())
 			return false;
-		auto mxa = max_element(lhs->vars.begin(), lhs->vars.end(), [](auto& p1, auto& p2) {return p1.second > p2.second; });
-		auto mxb = max_element(rhs->vars.begin(), rhs->vars.end(), [](auto& p1, auto& p2) {return p1.second > p2.second; });
+		auto mxa = max_element(lhs->vars.begin(), lhs->vars.end(), [](auto& p1, auto& p2) {return p1.second < p2.second; });
+		auto mxb = max_element(rhs->vars.begin(), rhs->vars.end(), [](auto& p1, auto& p2) {return p1.second < p2.second; });
 		if ((*mxa).second == (*mxb).second)
 			return abs(lhs->coeff) < abs(rhs->coeff);
 		return (*mxa).second < (*mxb).second;
@@ -360,7 +377,7 @@ string Polynomial::to_string() {
 		char buffer[128];
 		sprintf_s(buffer, "%g", abs(it->data->coeff));
 		string impl = string(buffer);
-		if (abs(it->data->coeff) == 1) {
+		if (abs(it->data->coeff) == 1 && !it->data->vars.empty()) {
 			impl = "";
 		}
 
@@ -424,20 +441,66 @@ Op_Sign Polynomial::parser_read_sign(bool first) {
 	throw ReadExpection(this->initial_stream.get_cur(), "Generic error");
 }
 
+class WndClass;
+class InputField {
+	Vector2f pos;
+	Vector2f size;
+	bool(*_Comp)(wchar_t);
+	void(WndClass::*_Eval)(String);
+	String name;
+	WndClass* window;
+public:
+	String value;
+
+	InputField(WndClass* wnd, String name, Vector2f pos, Vector2f size, bool(*_Comp)(wchar_t), void(WndClass::* _Eval)(String));
+	void on_mousedown(Vector2f vec);
+	void text_entered(Event evnt);
+	void draw(RenderWindow* wnd);
+};
+
 class WndClass {
 	RenderWindow* wnd;
 	Vector2f size;
 
-	List<Polynomial*>* polys;
 public:
+	List<Polynomial*>* polys;
+	vector<InputField*> activeFields;
+	InputField* selectedField;
+
+	void add_poly(String str, bool silent) {
+		try {
+			Polynomial* poly = Polynomial::parse(str);
+			this->polys->InsertLast(poly);
+		}
+		catch (ReadExpection& ex) {
+			cout << ex.what() << endl;
+		}
+	}
+
+	void add_poly_user(String str) {
+		return this->add_poly(str, false);
+	}
+
+	bool create_inputs() {
+		auto all_allowed = [](wchar_t c) {
+			return true;
+		};
+
+		this->activeFields.push_back(new InputField(this, String("Add polynomial"), Vector2f(320, 700), Vector2f(250, 30), all_allowed, &WndClass::add_poly_user));
+
+		return true;
+	}
+
 	WndClass(RenderWindow* wnd, Vector2f size) {
 		this->wnd = wnd;
 		this->size = size;
 		this->polys = new List<Polynomial*>();
+		this->selectedField = 0;
+		this->create_inputs();
 	}
 
 	void draw_poly_list() {
-		Vector2f field_size = Vector2f(200, this->size.y);
+		Vector2f field_size = Vector2f(300, this->size.y);
 		Vector2f field_pos = Vector2f(0, 0);
 
 		RectangleShape rect(field_size);
@@ -447,23 +510,51 @@ public:
 		rect.setFillColor(Color(90, 90, 90, 255));
 		this->wnd->draw(rect);
 
-		for(this->)
+		int cnt = 1;
+		for (auto it = this->polys->begin(); it != nullptr; it = it->next) {
+			String str = it->data->to_string();
+			int idx = 0;
+
+			while (idx < str.getSize()) {
+				Text text;
+				text.setFont(g_Font);
+				text.setCharacterSize(16);
+				text.setFillColor(Color(180, 180, 180, 255));
+				text.setPosition(Vector2f(field_pos));
+				if(!idx)
+					text.setString(to_string(cnt) + ". ");
+				while (idx < str.getSize() && text.getLocalBounds().width + 8 < field_size.x) {
+					text.setString(text.getString() + str[idx]);
+					++idx;
+				}
+				this->wnd->draw(text);
+				field_pos.y += text.getLocalBounds().height + 3;
+			}
+			field_pos.y += 5;
+
+			RectangleShape rect2(Vector2f(field_size.x, 0));
+			rect2.setPosition(field_pos);
+			rect2.setOutlineThickness(1.f);
+			rect2.setFillColor(Color(180, 180, 180, 255));
+			this->wnd->draw(rect2);
+
+			++cnt;
+		}
 	}
 
 	void frame() {
 		this->draw_poly_list();
-		Text text;
-		text.setFont(g_Font);
-		text.setCharacterSize(20);
-		text.setFillColor(Color(200, 200, 200, 255));
-		text.setString("[None]");
-		text.setPosition(Vector2f(250 + 60, 150 + 400 + 70));
-
+		for (auto v : this->activeFields) {
+			v->draw(this->wnd);
+		}
+			
 	}
 
 
 	void on_mousedown(Vector2f pos) {
-		
+		for (auto v : this->activeFields) {
+			v->on_mousedown(pos);
+		}
 	}
 
 	void on_mouseup(Vector2f pos) {
@@ -471,9 +562,65 @@ public:
 	}
 
 	void text_entered(Event evnt) {
-		
+		for (auto v : this->activeFields) {
+			v->text_entered(evnt);
+		}
 	}
 };
+
+InputField::InputField(WndClass* wnd, String name, Vector2f pos, Vector2f size, bool(*_Comp)(wchar_t), void(WndClass::* _Eval)(String)) {
+	this->pos = pos;
+	this->size = size;
+	this->_Comp = _Comp;
+	this->_Eval = _Eval;
+	this->name = name;
+	this->window = wnd;
+}
+
+void InputField::draw(RenderWindow* wnd) {
+	RectangleShape rect(size);
+	rect.setPosition(pos);
+	rect.setOutlineColor(Color(0, 0, 0, 255));
+	rect.setOutlineThickness(1.f);
+	rect.setFillColor(Color(255, 255, 255, 255));
+	wnd->draw(rect);
+
+	Text text;
+	text.setFont(g_Font);
+	text.setCharacterSize(16);
+	text.setFillColor(Color(0, 0, 0, 255));
+	text.setPosition(this->pos);
+	if (this->value.getSize()) {
+		text.setString(this->value);
+	}
+	else {
+		text.setFillColor(Color(180, 180, 180, 200));
+		text.setString(this->name);
+	}
+	wnd->draw(text);
+}
+
+void InputField::on_mousedown(Vector2f vec) {
+	if (vec.x >= this->pos.x && vec.x <= this->pos.x + this->size.x && vec.y >= this->pos.y && vec.y <= this->pos.y + this->size.y) {
+		window->selectedField = this;
+	}
+}
+void InputField::text_entered(Event evnt) {
+	if (this != window->selectedField)
+		return;
+	if(evnt.text.unicode == 13){
+		(this->window->*_Eval)(this->value); //enter
+		this->value = String();
+	}
+	else if (evnt.text.unicode == 8) { //backspace
+		if(this->value.getSize())
+			this->value = this->value.substring(0, this->value.getSize() - 1);
+	}
+	else {
+		this->value += evnt.text.unicode;
+	}
+	//cout << evnt.text.unicode << endl;
+}
 
 int main()
 {

@@ -108,6 +108,16 @@ public:
 		return this->head;
 	}
 
+	iterator InsertLast(T data) {
+		if (!this->head)
+			return this->InsertFirst(data);
+		Node<T>* tmp = this->head;
+		while (tmp->next) {
+			tmp = tmp->next;
+		}
+		return this->InsertAfter(tmp, data);
+	}
+
 	iterator InsertAfter(iterator element, T data) {
 		if (!element)
 			return nullptr;
