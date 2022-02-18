@@ -128,7 +128,7 @@ public:
 	virtual double Calculate(long long cbInput) {
 		outBuffer = new T[cbInput];
 		double result = BaseAlgo<T>::Calculate(cbInput);
-		delete[] outBuffer;
+		//delete[] outBuffer;
 		return result;
 	}
 
@@ -227,7 +227,7 @@ int main()
 	srand(time(0));
 	uint64_t seed = time(0);
 
-	long long size = 3 * 1e4;
+	long long size = 10000;
 	using test_type = double;
 	cout << "sorting size " << size << endl;
 	//QSTLSort<test_type>* qsort = new QSTLSort<test_type>(seed);
@@ -235,6 +235,15 @@ int main()
 	for (int i = 0; i < 7; ++i) {
 		auto sort = new RadixSort<test_type>(seed);
 		cout << "sort " << sort->Calculate(size) << "ms\n";
+
+		vector<test_type> vec(sort->outBuffer, sort->outBuffer + size);
+		std::sort(vec.begin(), vec.end());
+		for (int j = 0; j < size; ++j) {
+			if (vec[j] != sort->outBuffer[j]) {
+				cout << "fail " << j << "..." << endl;
+			}
+		}
+		delete[] sort->outBuffer;
 		delete sort;
 	}
 	//RadixSort<test_type>* radix = new RadixSort<test_type>((uint64_t)time(0) * i);
