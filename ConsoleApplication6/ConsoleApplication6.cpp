@@ -189,14 +189,15 @@ enum class Op_Sign {
 };
 
 class Polynomial {
-	Polynomial(Stream source);
-	~Polynomial();
 	void try_parse();
 	void simplify();
 	Op_Sign parser_read_sign(bool first);
 
 	Stream initial_stream;
 public:
+	Polynomial(Stream source);
+	~Polynomial();
+
 	List<Term*>* terms;
 
 	string to_string();
@@ -262,10 +263,14 @@ void Polynomial::try_parse() {
 			this->initial_stream.read_while(' ');
 
 			if (had_last) {
+				char chr = this->initial_stream.peek_char();
+				if (chr < 'a' || chr > 'z') {
+					throw ReadExpection(this->initial_stream.get_cur(), "Invalid char");
+				}
 				throw ReadExpection(this->initial_stream.get_cur(), "Term without power should be the last one");
 			}
 
-			char chr = this->initial_stream.read_char();
+			char chr = this->initial_stream.peek_char();
 			if (chr < 'a' || chr > 'z') {
 				throw ReadExpection(this->initial_stream.get_cur(), "Invalid char");
 			}
@@ -273,6 +278,7 @@ void Polynomial::try_parse() {
 			if (term->vars.find(chr) != term->vars.end()) {
 				throw ReadExpection(this->initial_stream.get_cur(), string("\'") + chr + "\' appeared twice");
 			}
+			this->initial_stream.read_char();
 			this->initial_stream.read_while(' '); // x       ^2...
 
 			int num = 1;
@@ -443,14 +449,16 @@ Op_Sign Polynomial::parser_read_sign(bool first) {
 
 class WndClass;
 class InputField {
-	Vector2f pos;
-	Vector2f size;
 	bool(*_Comp)(wchar_t);
 	void(WndClass::*_Eval)(String);
 	String name;
-	WndClass* window;
 public:
+	Vector2f pos;
+	Vector2f size;
+	void(*_Upd)(InputField*);
+	WndClass* window;
 	String value;
+	String lastDrawValue;
 
 	InputField(WndClass* wnd, String name, Vector2f pos, Vector2f size, bool(*_Comp)(wchar_t), void(WndClass::* _Eval)(String));
 	void on_mousedown(Vector2f vec);
@@ -487,6 +495,40 @@ public:
 		};
 
 		this->activeFields.push_back(new InputField(this, String("Add polynomial"), Vector2f(320, 700), Vector2f(250, 30), all_allowed, &WndClass::add_poly_user));
+		this->activeFields[this->activeFields.size() - 1]->_Upd = [](InputField* field) {
+			try {
+				Polynomial* poly = Polynomial::parse(field->value);
+				delete poly;
+			}
+			catch (ReadExpection& ex) {
+				if (ex.position >= field->value.getSize())
+					ex.position = field->value.getSize() - 1;
+				bool shouldMark = field->lastDrawValue.getSize() > field->value.getSize() - ex.position - 1;
+				if (shouldMark) {
+					Text text;
+					text.setFont(g_Font);
+					text.setCharacterSize(16);
+					text.setString(field->lastDrawValue);
+
+					int tp = field->lastDrawValue.getSize() - (field->value.getSize() - ex.position - 1) - 1;
+					Vector2f markPos = text.findCharacterPos(tp);
+					Vector2f markSize = (tp < field->lastDrawValue.getSize() ? text.findCharacterPos(tp + 1) : Vector2f()) - markPos;
+
+					RectangleShape rect(Vector2f(markSize.x, 16));
+					rect.setPosition(field->pos + Vector2f(field->size.x - text.getLocalBounds().width, 0) + markPos);
+					rect.setFillColor(Color(255, 0, 0, 255 * 0.5));
+					field->window->wnd->draw(rect);
+
+					Text text2;
+					text2.setFont(g_Font);
+					text2.setCharacterSize(12);
+					text2.setString(ex.what());
+					text2.setFillColor(Color(0, 0, 0, 255));
+					text2.setPosition(field->pos + Vector2f(field->size.x - text2.getLocalBounds().width + 30, field->size.y + 20));
+					field->window->wnd->draw(text2);
+				}
+			}
+		};
 
 		return true;
 	}
@@ -589,15 +631,23 @@ void InputField::draw(RenderWindow* wnd) {
 	text.setFont(g_Font);
 	text.setCharacterSize(16);
 	text.setFillColor(Color(0, 0, 0, 255));
-	text.setPosition(this->pos);
 	if (this->value.getSize()) {
-		text.setString(this->value);
+		int cnt = this->value.getSize() - 1;
+		while (cnt >= 0 && text.getLocalBounds().width + 10 < size.x) {
+			text.setString(this->value[cnt--] + text.getString());
+		}
+		this->lastDrawValue = text.getString();
 	}
 	else {
 		text.setFillColor(Color(180, 180, 180, 200));
 		text.setString(this->name);
+		this->lastDrawValue = "";
 	}
+	text.setPosition(this->pos + Vector2f(this->size.x - text.getLocalBounds().width, 0));
 	wnd->draw(text);
+
+	if (this->_Upd)
+		this->_Upd(this);
 }
 
 void InputField::on_mousedown(Vector2f vec) {
