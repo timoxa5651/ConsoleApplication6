@@ -498,6 +498,8 @@ public:
 		this->activeFields[this->activeFields.size() - 1]->_Upd = [](InputField* field) {
 			try {
 				Polynomial* poly = Polynomial::parse(field->value);
+				if (!poly)
+					throw ReadExpection(field->value.getSize(), "Unknown error");
 				delete poly;
 			}
 			catch (ReadExpection& ex) {
@@ -589,7 +591,7 @@ public:
 		for (auto v : this->activeFields) {
 			v->draw(this->wnd);
 		}
-			
+		
 	}
 
 
