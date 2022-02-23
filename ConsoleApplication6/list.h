@@ -6,7 +6,7 @@ public:
 	Node<T>* prev;
 	T data;
 
-	Node(T& dt, Node<T>* nxt = nullptr, Node<T>* prv = nullptr) {
+	Node(const T& dt, Node<T>* nxt = nullptr, Node<T>* prv = nullptr) {
 		this->next = nxt;
 		this->prev = prv;
 		this->data = dt;
@@ -93,7 +93,7 @@ public:
 		}
 	}
 
-	iterator begin() {
+	iterator& begin() {
 		return this->head;
 	}
 	iterator end() {
@@ -149,6 +149,13 @@ public:
 			iter->next->prev = iter->prev;
 		delete iter;
 		this->size -= 1;
+	}
+
+	iterator operator[](int idx) {
+		iterator it = this->begin();
+		while (--idx >= 0)
+			it = it->next;
+		return it;
 	}
 
 	template<typename _Pred>

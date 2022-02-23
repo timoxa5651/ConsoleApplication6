@@ -6,6 +6,7 @@
 #include <cassert>
 #include <random>
 #include <chrono>
+#include <fstream>
 #include <any>
 #include <unordered_set>
 #include "list.h"
@@ -182,6 +183,32 @@ public:
 	~Term() {
 
 	}
+
+	int Compare(Term* rhs) {
+		if (this->vars.size() < rhs->vars.size()) {
+			return -1;
+		}
+		else if (this->vars.size() > rhs->vars.size()) {
+			return 1;
+		}
+		int cnt = this->vars.size();
+		auto it = this->vars.begin();
+		auto it2 = rhs->vars.begin();
+		while (cnt--) {
+			if ((*it).first < (*it2).first)
+				return -1;
+			else if ((*it).first > (*it2).first)
+				return 1;
+
+			if ((*it).second < (*it2).second)
+				return -1;
+			else if ((*it).second > (*it2).second)
+				return 1;
+			it++;
+			it2++;
+		}
+		return 0;
+	}
 };
 
 enum class Op_Sign {
@@ -194,6 +221,8 @@ class Polynomial {
 	Op_Sign parser_read_sign(bool first);
 
 	Stream initial_stream;
+
+	Polynomial();
 public:
 	Polynomial(Stream source);
 	~Polynomial();
@@ -202,8 +231,14 @@ public:
 
 	string to_string();
 
+	static Polynomial* sum(Polynomial* lhs, Polynomial* rhs);
 	static Polynomial* parse(sf::String source);
 };
+
+Polynomial::Polynomial() {
+	this->terms = new List<Term*>();
+	this->initial_stream = String("");
+}
 
 Polynomial::Polynomial(Stream source) {
 	this->terms = new List<Term*>();
@@ -230,6 +265,12 @@ Polynomial* Polynomial::parse(sf::String source) {
 		return nullptr;
 	}
 	poly->simplify();
+
+	Node<Term*>* prev = poly->terms->begin();
+	for (auto nxt = prev->next; nxt != nullptr; nxt = nxt->next) {
+		int rs = prev->data->Compare(nxt->data);
+		assert(rs == -1);
+	}
 	return poly;
 }
 
@@ -267,7 +308,7 @@ void Polynomial::try_parse() {
 				if (chr < 'a' || chr > 'z') {
 					throw ReadExpection(this->initial_stream.get_cur(), "Invalid char");
 				}
-				throw ReadExpection(this->initial_stream.get_cur(), "Term without power should be the last one");
+				//throw ReadExpection(this->initial_stream.get_cur(), "Term without power should be the last one");
 			}
 
 			char chr = this->initial_stream.peek_char();
@@ -365,16 +406,78 @@ void Polynomial::simplify() {
 	}
 
 	this->terms->Sort([](Term* lhs, Term* rhs) {
-		if (lhs->vars.empty())
-			return true;
-		else if (rhs->vars.empty())
-			return false;
-		auto mxa = max_element(lhs->vars.begin(), lhs->vars.end(), [](auto& p1, auto& p2) {return p1.second < p2.second; });
-		auto mxb = max_element(rhs->vars.begin(), rhs->vars.end(), [](auto& p1, auto& p2) {return p1.second < p2.second; });
-		if ((*mxa).second == (*mxb).second)
+		int cmp = lhs->Compare(rhs);
+		assert(cmp);
+		if (cmp == 0)
 			return abs(lhs->coeff) < abs(rhs->coeff);
-		return (*mxa).second < (*mxb).second;
-	});
+		return (cmp == 1);
+		});
+}
+
+Polynomial* Polynomial::sum(Polynomial* lhs, Polynomial* rhs) {
+	Polynomial* result = new Polynomial();
+	Node<Term*>* left = lhs->terms->begin();
+	Node<Term*>* right = rhs->terms->begin();
+
+	Node<Term*>* node = result->terms->begin();
+	while (left || right) {
+		Term* rsl = nullptr;
+		bool flag = false;
+		Node<Term*>* next = nullptr;
+		if (!left) {
+			next = right;
+			right = right->next;
+		}
+		else if (!right) {
+			next = left;
+			left = left->next;
+		}
+		else {
+			int cmp = left->data->Compare(right->data);
+			if (cmp == -1) {
+				next = left;
+				left = left->next;
+			}
+			else if (cmp == 1) {
+				next = right;
+				right = right->next;
+			}
+			else {
+				if (right->data->coeff + left->data->coeff != 0) {
+					rsl = new Term();
+					rsl->vars = right->data->vars;
+					rsl->coeff = right->data->coeff + left->data->coeff;
+				}
+				right = right->next;
+				left = left->next;
+				flag = true;
+			}
+		}
+
+		if (!flag) {
+			if (node) {
+				node = result->terms->InsertAfter(node, new Term());
+			}
+			else {
+				node = result->terms->InsertFirst(new Term());
+			}
+
+			node->data->coeff = next->data->coeff;
+			node->data->vars = next->data->vars;
+		}
+		else if (rsl) {
+			if (node) {
+				node = result->terms->InsertAfter(node, rsl);
+			}
+			else {
+				node = result->terms->InsertFirst(rsl);
+			}
+		}
+	}
+
+	if (!result->terms->size)
+		result->terms->InsertFirst(new Term());
+	return result;
 }
 
 string Polynomial::to_string() {
@@ -450,7 +553,7 @@ Op_Sign Polynomial::parser_read_sign(bool first) {
 class WndClass;
 class InputField {
 	bool(*_Comp)(wchar_t);
-	void(WndClass::*_Eval)(String);
+	void(WndClass::* _Eval)(String);
 	String name;
 public:
 	Vector2f pos;
@@ -466,14 +569,91 @@ public:
 	void draw(RenderWindow* wnd);
 };
 
-class WndClass {
-	RenderWindow* wnd;
-	Vector2f size;
-
+class InputFieldCollection {
 public:
-	List<Polynomial*>* polys;
-	vector<InputField*> activeFields;
+	vector<InputField*> fields;
+	String desc;
+	void(WndClass::* _Send)(vector<String>&);
+
+	InputFieldCollection(vector<InputField*> vec, void(WndClass::* call)(vector<String>&), String desc) {
+		this->fields = vec;
+		this->_Send = call;
+		this->desc = desc;
+	}
+	InputFieldCollection(InputField* fl) {
+		this->fields.push_back(fl);
+		this->_Send = 0;
+	}
+
+	void on_mousedown(Vector2f vec) {
+		for (auto a : fields)
+			a->on_mousedown(vec);
+	}
+	void text_entered(Event evnt);
+	void draw(RenderWindow* wnd);
+};
+
+template<typename T = void*>
+class BlockWindow {
+	static_assert(is_pointer_v<T>);
+public:
+	String text;
+	void(*_Call)(BlockWindow*, T, int);
+	Vector2f pos;
+	T arg0;
+	WndClass* wnd;
+
+	BlockWindow(WndClass* wnd, String str, void(*_Call)(BlockWindow*, T, int), T arg) {
+		this->text = str;
+		this->_Call = _Call;
+		this->arg0 = arg;
+		this->wnd = wnd;
+		this->pos = Vector2f(0, 0);
+	};
+
+	void draw(RenderWindow* wnd) {
+		RectangleShape rect(Vector2f(wnd->getSize().x, wnd->getSize().y));
+		rect.setPosition(pos);
+		rect.setOutlineColor(Color(0, 0, 0, 255));
+		rect.setOutlineThickness(1.f);
+		rect.setFillColor(Color(255, 255, 255, 255));
+		wnd->draw(rect);
+
+		Text text;
+		text.setFont(g_Font);
+		text.setCharacterSize(16);
+		text.setFillColor(Color(0, 0, 0, 255));
+		text.setString(this->text + "\n\n\nPress Y to save it, N to delete it");
+		text.setPosition(this->pos);
+		wnd->draw(text);
+	}
+	void on_mousedown(Vector2f vec) {
+		
+	}
+
+	void text_entered(Event evnt) {
+		if (tolower(evnt.text.unicode) == L'y') {
+			this->_Call(this, this->arg0, 1);
+			this->_Call = 0;
+		}
+		else if(tolower(evnt.text.unicode) == L'n') {
+			this->_Call(this, this->arg0, 0);
+			this->_Call = 0;
+		}
+	}
+};
+
+class WndClass {
+	friend class InputFieldCollection;
+	friend class InputField;
+
+	Vector2f size;
+	RenderWindow* wnd;
 	InputField* selectedField;
+	vector<InputFieldCollection*> activeFields;
+public:
+	BlockWindow<>* blockWindow;
+	List<Polynomial*>* polys;
 
 	void add_poly(String str, bool silent) {
 		try {
@@ -486,16 +666,105 @@ public:
 	}
 
 	void add_poly_user(String str) {
-		return this->add_poly(str, false);
+		return this->add_poly(str, true);
+	}
+	void add_file_user(String str) {
+		ifstream stream(str.toAnsiString());
+		if (!stream.good())
+			return;
+		string line;
+		while (getline(stream, line)) {
+			this->add_poly_user(line);
+		}
+		stream.close();
+	}
+	void del_poly_user(String str) {
+		try {
+			int num = Stream(str).get_num(0, true);
+			if (num < 1 || num > this->polys->size) {
+				throw ReadExpection(0, "Invalid input");
+			}
+			this->polys->Delete(this->polys->operator[](num - 1));
+		}
+		catch (ReadExpection& ex) {
+
+		}
+	}
+
+	void sum_user(vector<String>& str) {
+		try {
+			int num1 = Stream(str[0]).get_num(0, false);
+			int num2 = Stream(str[1]).get_num(0, false);
+			if (num1 < 1 || num1 > this->polys->size)
+				throw ReadExpection(0, "Invalid arg1");
+			if (num2 < 1 || num2 > this->polys->size)
+				throw ReadExpection(0, "Invalid arg2");
+
+			try {
+				auto fs = this->polys->operator[](num1 - 1)->data;
+				auto sc = this->polys->operator[](num2 - 1)->data;
+				Polynomial* poly2 = Polynomial::sum(fs, sc);
+				String str = "Sum of \n   " + fs->to_string() + "\nAND\n   " + sc->to_string() + "\nEQUALS\n   " + poly2->to_string();
+				this->blockWindow = new BlockWindow<>(this, str, [](BlockWindow<>* blockWindow, void* ptr, int rs) {
+					Polynomial* pl = (Polynomial*)ptr;
+					if (rs > 0) {
+						blockWindow->wnd->polys->InsertLast(pl);
+					}
+					else {
+						delete pl;
+					}
+				}, poly2);
+			}
+			catch (ReadExpection& ex) {
+				throw;
+			}
+		}
+		catch (ReadExpection& ex) {
+			cout << "Error: " << ex.what() << endl;
+		}
 	}
 
 	bool create_inputs() {
-		auto all_allowed = [](wchar_t c) {
-			return true;
+		auto numbers_only = [](wchar_t c) -> bool {
+			return c >= L'0' && c <= L'9';
+		};
+		// SHRUG
+
+		this->activeFields.push_back(new InputFieldCollection({
+			new InputField(this, String("First"), Vector2f(440, 100), Vector2f(70, 25), numbers_only, nullptr),
+			new InputField(this, String("Second"), Vector2f(520, 100), Vector2f(70, 25), numbers_only, nullptr)
+		}, &WndClass::sum_user, "Sum polynoms"));
+
+		this->activeFields.push_back(new InputFieldCollection(new InputField(this, String("Add from file"), Vector2f(320, 620), Vector2f(250, 30), nullptr, &WndClass::add_file_user)));
+		this->activeFields[this->activeFields.size() - 1]->fields[0]->_Upd = [](InputField* field) {
+			try {
+				ifstream str(field->value.toAnsiString());
+				if (!str.good())
+					throw 0;
+				str.close();
+				Text text2;
+				text2.setFont(g_Font);
+				text2.setCharacterSize(12);
+				text2.setString("Good");
+				text2.setFillColor(Color(0, 128, 0, 255));
+				text2.setPosition(field->pos + Vector2f(field->size.x - text2.getLocalBounds().width, field->size.y + 5));
+				field->window->wnd->draw(text2);
+			}
+			catch (...) {
+				if (field->value.getSize()) {
+					Text text2;
+					text2.setFont(g_Font);
+					text2.setCharacterSize(12);
+					text2.setString("File error");
+					text2.setFillColor(Color(255, 0, 0, 255));
+					text2.setPosition(field->pos + Vector2f(field->size.x - text2.getLocalBounds().width, field->size.y + 5));
+					field->window->wnd->draw(text2);
+				}
+			}
 		};
 
-		this->activeFields.push_back(new InputField(this, String("Add polynomial"), Vector2f(320, 700), Vector2f(250, 30), all_allowed, &WndClass::add_poly_user));
-		this->activeFields[this->activeFields.size() - 1]->_Upd = [](InputField* field) {
+		this->activeFields.push_back(new InputFieldCollection(new InputField(this, String("Add polynomial"), Vector2f(320, 700), Vector2f(250, 30), nullptr, &WndClass::add_poly_user)));
+		this->activeFields[this->activeFields.size() - 1]->fields[0]->_Upd = [](InputField* field) {
 			try {
 				Polynomial* poly = Polynomial::parse(field->value);
 				if (!poly)
@@ -532,6 +801,7 @@ public:
 			}
 		};
 
+		this->activeFields.push_back(new InputFieldCollection(new InputField(this, String("Delete"), Vector2f(320, 740), Vector2f(80, 30), numbers_only, &WndClass::del_poly_user)));
 		return true;
 	}
 
@@ -540,7 +810,16 @@ public:
 		this->size = size;
 		this->polys = new List<Polynomial*>();
 		this->selectedField = 0;
+		this->blockWindow = nullptr;
 		this->create_inputs();
+	}
+	~WndClass() {
+		if (this->polys)
+			delete this->polys;
+		this->polys = nullptr;
+		for (auto& a : this->activeFields)
+			delete a;
+		this->activeFields.clear();
 	}
 
 	void draw_poly_list() {
@@ -565,7 +844,7 @@ public:
 				text.setCharacterSize(16);
 				text.setFillColor(Color(180, 180, 180, 255));
 				text.setPosition(Vector2f(field_pos));
-				if(!idx)
+				if (!idx)
 					text.setString(to_string(cnt) + ". ");
 				while (idx < str.getSize() && text.getLocalBounds().width + 8 < field_size.x) {
 					text.setString(text.getString() + str[idx]);
@@ -587,15 +866,23 @@ public:
 	}
 
 	void frame() {
+		if (this->blockWindow && !this->blockWindow->_Call) {
+			delete this->blockWindow;
+			this->blockWindow = 0;
+		}
 		this->draw_poly_list();
 		for (auto v : this->activeFields) {
 			v->draw(this->wnd);
 		}
-		
+		if (this->blockWindow)
+			this->blockWindow->draw(this->wnd);
 	}
 
-
 	void on_mousedown(Vector2f pos) {
+		if (this->blockWindow) {
+			return this->blockWindow->on_mousedown(pos);
+		}
+
 		for (auto v : this->activeFields) {
 			v->on_mousedown(pos);
 		}
@@ -606,6 +893,10 @@ public:
 	}
 
 	void text_entered(Event evnt) {
+		if (this->blockWindow) {
+			return this->blockWindow->text_entered(evnt);
+		}
+
 		for (auto v : this->activeFields) {
 			v->text_entered(evnt);
 		}
@@ -619,6 +910,40 @@ InputField::InputField(WndClass* wnd, String name, Vector2f pos, Vector2f size, 
 	this->_Eval = _Eval;
 	this->name = name;
 	this->window = wnd;
+}
+
+void InputFieldCollection::draw(RenderWindow* wnd) {
+	for (auto a : fields)
+		a->draw(wnd);
+	if (this->desc.getSize()) {
+		Text text;
+		text.setFont(g_Font);
+		text.setCharacterSize(16);
+		text.setFillColor(Color(0, 0, 0, 255));
+		text.setString(this->desc);
+		text.setPosition(this->fields[0]->pos + Vector2f(-text.getLocalBounds().width - 15, 0));
+		this->fields[0]->window->wnd->draw(text);
+	}
+}
+
+void InputFieldCollection::text_entered(Event evnt) {
+	if (this->_Send && evnt.text.unicode == 13) {
+		bool flag = false;
+		for (auto a : fields)
+			flag = flag || a == a->window->selectedField;
+		if (flag) {
+			vector<String> str;
+			for (auto a : fields)
+				str.push_back(a->value);
+			(this->fields[0]->window->*_Send)(str);
+			for (auto a : fields)
+				a->value = String();
+			return;
+		}
+	}
+
+	for (auto a : fields)
+		a->text_entered(evnt);
 }
 
 void InputField::draw(RenderWindow* wnd) {
@@ -660,15 +985,15 @@ void InputField::on_mousedown(Vector2f vec) {
 void InputField::text_entered(Event evnt) {
 	if (this != window->selectedField)
 		return;
-	if(evnt.text.unicode == 13){
+	if (evnt.text.unicode == 13) {
 		(this->window->*_Eval)(this->value); //enter
 		this->value = String();
 	}
 	else if (evnt.text.unicode == 8) { //backspace
-		if(this->value.getSize())
+		if (this->value.getSize())
 			this->value = this->value.substring(0, this->value.getSize() - 1);
 	}
-	else {
+	else if (!this->_Comp || this->_Comp(evnt.text.unicode)) {
 		this->value += evnt.text.unicode;
 	}
 	//cout << evnt.text.unicode << endl;
@@ -676,12 +1001,9 @@ void InputField::text_entered(Event evnt) {
 
 int main()
 {
-
-	RenderWindow window(VideoMode(600, 900), "123");
-	WndClass* wnd = new WndClass(&window, Vector2f(600, 900));
-
 	g_Font.loadFromFile("arial.ttf");
-
+	static RenderWindow window(VideoMode(600, 900), "123");
+	WndClass* wnd = new WndClass(&window, Vector2f(600, 900));
 	while (window.isOpen())
 	{
 		Event event;
