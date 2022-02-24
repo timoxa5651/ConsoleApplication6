@@ -10,6 +10,7 @@
 #include <any>
 #include <unordered_set>
 #include "list.h"
+#include <set>
 
 using namespace std;
 using namespace sf;
@@ -145,7 +146,16 @@ public:
 		return rstr;
 	}
 
-	int get_num(int st, bool read) {
+	int get_num(int st, bool read, bool negat = false) {
+		bool ng = this->str[st] == '-';
+		if (!negat && ng)
+			throw ReadExpection(this->off, "Only positive numbers are allowed");
+		if (ng) {
+			st += 1;
+			if (read)
+				this->off += 1;
+		}
+
 		int rd = 0, rs = 0;
 		for (int i = st; i < this->str.getSize(); ++i) {
 			if (this->str[i] >= '0' && this->str[i] <= '9') {
@@ -156,8 +166,6 @@ public:
 			}
 		}
 		if (!rd) {
-			if (this->str[st] == '-')
-				throw ReadExpection(this->off, "Only positive numbers are allowed");
 			throw ReadExpection(this->off, "Number expected");
 		}
 		for (int i = st; rd; ++i, rd /= 10) {
@@ -166,7 +174,7 @@ public:
 				this->off += 1;
 			}
 		}
-		return rs;
+		return rs * (ng ? -1 : 1);
 	}
 };
 
@@ -232,6 +240,7 @@ public:
 	string to_string();
 
 	static Polynomial* sum(Polynomial* lhs, Polynomial* rhs);
+	static Polynomial* multiply(Polynomial* lhs, Polynomial* rhs);
 	static Polynomial* parse(sf::String source);
 };
 
@@ -316,13 +325,10 @@ void Polynomial::try_parse() {
 				throw ReadExpection(this->initial_stream.get_cur(), "Invalid char");
 			}
 
-			if (term->vars.find(chr) != term->vars.end()) {
-				throw ReadExpection(this->initial_stream.get_cur(), string("\'") + chr + "\' appeared twice");
-			}
+			int num = 1;
 			this->initial_stream.read_char();
 			this->initial_stream.read_while(' '); // x       ^2...
 
-			int num = 1;
 			if (this->initial_stream.peek_char() == '^') {
 				this->initial_stream.read_expect({ '^' }, "Expected \'^\'");
 
@@ -334,7 +340,14 @@ void Polynomial::try_parse() {
 				had_last = true;
 			}
 
-			term->vars.insert({ chr, num });
+			auto it3 = term->vars.find(chr);
+			if (it3 != term->vars.end()) {
+				//throw ReadExpection(this->initial_stream.get_cur(), string("\'") + chr + "\' appeared twice");
+				(*it3).second += num;
+			}
+			else {
+				term->vars.insert({ chr, num });
+			}
 
 			this->initial_stream.read_while(' ');
 			had_nums = true;
@@ -480,6 +493,24 @@ Polynomial* Polynomial::sum(Polynomial* lhs, Polynomial* rhs) {
 	return result;
 }
 
+Polynomial* Polynomial::multiply(Polynomial* lhs, Polynomial* rhs) {
+	Polynomial* result2 = new Polynomial();
+
+	for (auto t1 = lhs->terms->begin(); t1; t1 = t1->next) {
+		for (auto t2 = rhs->terms->begin(); t2; t2 = t2->next) {
+			Term* result = new Term();
+			result->coeff = t1->data->coeff * t2->data->coeff;
+			result->vars = t1->data->vars;
+			for (auto& [p, v] : t2->data->vars)
+				result->vars[p] += v;
+			result2->terms->InsertFirst(result);
+		}
+	}
+
+	result2->simplify();
+	return result2;
+}
+
 string Polynomial::to_string() {
 	string s = "";
 	for (auto it = this->terms->begin(); it != this->terms->end(); it = it->next) {
@@ -554,8 +585,8 @@ class WndClass;
 class InputField {
 	bool(*_Comp)(wchar_t);
 	void(WndClass::* _Eval)(String);
-	String name;
 public:
+	String name;
 	Vector2f pos;
 	Vector2f size;
 	void(*_Upd)(InputField*);
@@ -593,19 +624,28 @@ public:
 	void draw(RenderWindow* wnd);
 };
 
+struct _EvalState {
+	Polynomial* poly;
+	map<char, int> vals;
+	char chur;
+};
+
 template<typename T = void*>
 class BlockWindow {
 	static_assert(is_pointer_v<T>);
 public:
 	String text;
-	void(*_Call)(BlockWindow*, T, int);
+	bool(*_Call)(BlockWindow*, T, int);
 	Vector2f pos;
 	T arg0;
 	WndClass* wnd;
+	void(*_Draw)(BlockWindow*, RenderWindow*);
+	vector<InputField*> fields;
 
-	BlockWindow(WndClass* wnd, String str, void(*_Call)(BlockWindow*, T, int), T arg) {
+	BlockWindow(WndClass* wnd, String str, bool(*_Call)(BlockWindow*, T, int), void(*_Draw)(BlockWindow*, RenderWindow*), T arg) {
 		this->text = str;
 		this->_Call = _Call;
+		this->_Draw = _Draw;
 		this->arg0 = arg;
 		this->wnd = wnd;
 		this->pos = Vector2f(0, 0);
@@ -619,6 +659,10 @@ public:
 		rect.setFillColor(Color(255, 255, 255, 255));
 		wnd->draw(rect);
 
+		for (auto a : this->fields)
+			a->draw(wnd);
+		if (_Draw)
+			return _Draw(this, wnd);
 		Text text;
 		text.setFont(g_Font);
 		text.setCharacterSize(16);
@@ -627,18 +671,21 @@ public:
 		text.setPosition(this->pos);
 		wnd->draw(text);
 	}
-	void on_mousedown(Vector2f vec) {
-		
+	void on_mousedown(Vector2f vec2) {
+		for (auto a : this->fields)
+			a->on_mousedown(vec2);
 	}
 
 	void text_entered(Event evnt) {
-		if (tolower(evnt.text.unicode) == L'y') {
-			this->_Call(this, this->arg0, 1);
-			this->_Call = 0;
+		for (auto a : this->fields)
+			a->text_entered(evnt);
+		if (tolower(evnt.text.unicode) == L'y' || evnt.text.unicode == 13) {
+			if(this->_Call(this, this->arg0, 1))
+				this->_Call = 0;
 		}
 		else if(tolower(evnt.text.unicode) == L'n') {
-			this->_Call(this, this->arg0, 0);
-			this->_Call = 0;
+			if(this->_Call(this, this->arg0, 0))
+				this->_Call = 0;
 		}
 	}
 };
@@ -678,6 +725,15 @@ public:
 		}
 		stream.close();
 	}
+	void save_file_user(String str) {
+		ofstream stream(str.toAnsiString());
+		if (!stream.good())
+			return;
+		for (auto it = this->polys->begin(); it; it = it->next) {
+			stream << it->data->to_string() << endl;
+		}
+		stream.close();
+	}
 	void del_poly_user(String str) {
 		try {
 			int num = Stream(str).get_num(0, true);
@@ -713,11 +769,136 @@ public:
 					else {
 						delete pl;
 					}
-				}, poly2);
+					return true;
+				}, 0, poly2);
 			}
 			catch (ReadExpection& ex) {
 				throw;
 			}
+		}
+		catch (ReadExpection& ex) {
+			cout << "Error: " << ex.what() << endl;
+		}
+	}
+
+	void multiply_user(vector<String>& str) {
+		try {
+			int num1 = Stream(str[0]).get_num(0, false);
+			int num2 = Stream(str[1]).get_num(0, false);
+			if (num1 < 1 || num1 > this->polys->size)
+				throw ReadExpection(0, "Invalid arg1");
+			if (num2 < 1 || num2 > this->polys->size)
+				throw ReadExpection(0, "Invalid arg2");
+			auto fs = this->polys->operator[](num1 - 1)->data;
+			auto sc = this->polys->operator[](num2 - 1)->data;
+			Polynomial* poly2 = Polynomial::multiply(fs, sc);
+			String str = "Multiplication of \n   " + fs->to_string() + "\nAND\n   " + sc->to_string() + "\nEQUALS\n   " + poly2->to_string();
+			this->blockWindow = new BlockWindow<>(this, str, [](BlockWindow<>* blockWindow, void* ptr, int rs) {
+				Polynomial* pl = (Polynomial*)ptr;
+				if (rs > 0) {
+					blockWindow->wnd->polys->InsertLast(pl);
+				}
+				else {
+					delete pl;
+				}
+				return true;
+			}, 0, poly2);
+		}
+		catch (ReadExpection& ex) {
+			cout << "Error: " << ex.what() << endl;
+		}
+	}
+
+	void evaluate_user(vector<String>& str) {
+		try {
+			int num1 = Stream(str[0]).get_num(0, false);
+			if (num1 < 1 || num1 > this->polys->size)
+				throw ReadExpection(0, "Invalid arg1");
+			_EvalState* state = new _EvalState();
+			state->poly = this->polys->operator[](num1 - 1)->data;
+			set<char> pls;
+			for (auto t1 = state->poly->terms->begin(); t1; t1 = t1->next) {
+				for (auto& [p, v] : t1->data->vars)
+					pls.insert(p);
+			}
+			if (!pls.size()) {
+				state->chur = '\0';
+			}
+			else {
+				state->chur = *pls.begin();
+			}
+
+			this->blockWindow = new BlockWindow<>(this, "", [](BlockWindow<>* blockWindow, void* ptr, int rs) {
+				_EvalState* pl = (_EvalState*)ptr;
+				if (!pl->chur) {
+					delete pl;
+					return true;
+				}
+
+				set<char> pls;
+				for (auto t1 = pl->poly->terms->begin(); t1; t1 = t1->next) {
+					for (auto& [p, v] : t1->data->vars)
+						pls.insert(p);
+				}
+
+				bool flag3 = 0;
+				try {
+					auto str2 = Stream(blockWindow->fields[0]->lastDrawValue);
+					int jk = str2.get_num(0, 1, true);
+					if (str2.get_cur() < str2.get_size())
+						throw 0;
+					pl->vals[pl->chur] = jk;
+					flag3 = 1;
+				}
+				catch (...) {};
+				if (!flag3)
+					return false;
+
+				bool flag = 0, flag2 = 0;
+				for (auto& p : pls) {
+					if (flag) {
+						pl->chur = p;
+						flag2 = 1;
+						break;
+					}
+					if (p == pl->chur)
+						flag = 1;
+				}
+
+				if (!flag2) {
+					pl->chur = 0;
+					delete blockWindow->fields[0];
+					blockWindow->fields.clear();
+				}
+				return false;
+				}, [](BlockWindow<>* blockWindow, RenderWindow* wnd) {
+					_EvalState* pl = (_EvalState*)blockWindow->arg0;
+
+					Text text;
+					text.setFont(g_Font);
+					text.setCharacterSize(16);
+					text.setFillColor(Color(0, 0, 0, 255));
+					if(pl->chur)
+						text.setString("\nEnter value for variable \'" + String(pl->chur) + "\'");
+					else {
+						double result = 0;
+						for (auto t1 = pl->poly->terms->begin(); t1; t1 = t1->next) {
+							double psum = 1;
+							for (auto& [p, v] : t1->data->vars) {
+								psum *= pow(pl->vals[p], v);
+							}
+							result += psum * t1->data->coeff;
+						}
+						text.setString("\nResult is " + to_string(result));
+					}
+					text.setPosition(blockWindow->pos);
+					wnd->draw(text);
+				}, state);
+
+			auto numbers_only = [](wchar_t c) -> bool {
+				return (c >= L'0' && c <= L'9') || c == L'-';
+			};
+			this->blockWindow->fields.push_back(new InputField(this, "Value", Vector2f(140, 100), Vector2f(130, 25), numbers_only, 0));
 		}
 		catch (ReadExpection& ex) {
 			cout << "Error: " << ex.what() << endl;
@@ -734,7 +915,15 @@ public:
 			new InputField(this, String("First"), Vector2f(440, 100), Vector2f(70, 25), numbers_only, nullptr),
 			new InputField(this, String("Second"), Vector2f(520, 100), Vector2f(70, 25), numbers_only, nullptr)
 		}, &WndClass::sum_user, "Sum polynoms"));
+		this->activeFields.push_back(new InputFieldCollection({
+			new InputField(this, String("First"), Vector2f(440, 140), Vector2f(70, 25), numbers_only, nullptr),
+			new InputField(this, String("Second"), Vector2f(520, 140), Vector2f(70, 25), numbers_only, nullptr)
+		}, &WndClass::multiply_user, "Multiply polynoms"));
+		this->activeFields.push_back(new InputFieldCollection({
+			new InputField(this, String("Index"), Vector2f(440, 180), Vector2f(70, 25), numbers_only, nullptr),
+		}, &WndClass::evaluate_user, "Evaluate"));
 
+		this->activeFields.push_back(new InputFieldCollection(new InputField(this, String("Save to file"), Vector2f(320, 540), Vector2f(250, 30), nullptr, &WndClass::save_file_user)));
 		this->activeFields.push_back(new InputFieldCollection(new InputField(this, String("Add from file"), Vector2f(320, 620), Vector2f(250, 30), nullptr, &WndClass::add_file_user)));
 		this->activeFields[this->activeFields.size() - 1]->fields[0]->_Upd = [](InputField* field) {
 			try {
@@ -986,7 +1175,8 @@ void InputField::text_entered(Event evnt) {
 	if (this != window->selectedField)
 		return;
 	if (evnt.text.unicode == 13) {
-		(this->window->*_Eval)(this->value); //enter
+		if(this->_Eval)
+			(this->window->*_Eval)(this->value); //enter
 		this->value = String();
 	}
 	else if (evnt.text.unicode == 8) { //backspace

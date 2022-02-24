@@ -1,0 +1,6 @@
+a^2 + b^2
+1 + c
+c^2b + abc + c^2abd
+a^2 + b^2
+1 + c
+c^2b + abc + c^2abd

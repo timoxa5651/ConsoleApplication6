@@ -1,4 +1,5 @@
 #pragma once
+#include <type_traits>
 template<typename T = int>
 struct Node {
 public:
@@ -13,7 +14,7 @@ public:
 	}
 
 	~Node() {
-		if (is_pointer_v<T> && this->data) {
+		if (is_pointer<T>::value && this->data) {
 			delete this->data;
 		}
 	}
