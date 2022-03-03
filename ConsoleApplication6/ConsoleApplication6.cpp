@@ -287,7 +287,7 @@ void Polynomial::try_parse() {
 	this->initial_stream.read_while(' ');
 
 	while (this->initial_stream.get_cur() < this->initial_stream.get_size()) {
-		unique_ptr<Term> term(new Term());
+		unique_ptr<Term> term = make_unique<Term>();
 
 		bool first = this->terms->size == 0;
 		Op_Sign next_sign = this->parser_read_sign(first);
