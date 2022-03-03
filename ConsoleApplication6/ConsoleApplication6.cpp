@@ -1030,8 +1030,8 @@ public:
 			while (idx < str.getSize()) {
 				Text text;
 				text.setFont(g_Font);
-				text.setCharacterSize(16);
-				text.setFillColor(Color(180, 180, 180, 255));
+				text.setCharacterSize(18);
+				text.setFillColor(Color(255, 255, 255, 255));
 				text.setPosition(Vector2f(field_pos));
 				if (!idx)
 					text.setString(to_string(cnt) + ". ");
