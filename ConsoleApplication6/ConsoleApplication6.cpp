@@ -242,6 +242,7 @@ public:
 	static Polynomial* sum(Polynomial* lhs, Polynomial* rhs);
 	static Polynomial* multiply(Polynomial* lhs, Polynomial* rhs);
 	static Polynomial* parse(sf::String source);
+	static vector<double> get_roots(Polynomial* pol);
 };
 
 Polynomial::Polynomial() {
@@ -511,6 +512,64 @@ Polynomial* Polynomial::multiply(Polynomial* lhs, Polynomial* rhs) {
 	return result2;
 }
 
+vector<double> Polynomial::get_roots(Polynomial* pol) {
+	if (!pol || !pol->terms->size)
+		throw ReadExpection(0, "watafuk??");
+	if(pol->to_string() == "0")
+		throw ReadExpection(0, "Infinity");
+
+	char bps = 0;
+	for (auto t1 = pol->terms->begin(); t1; t1 = t1->next) {
+		for (auto [p, v] : t1->data->vars) {
+			char nbps = p;
+			if (bps && nbps != bps)
+				throw ReadExpection(0, "Too many vars");
+			bps = nbps;
+		}
+	}
+
+	auto calc = [&](int param) {
+		double result = 0;
+		for (auto t1 = pol->terms->begin(); t1; t1 = t1->next) {
+			double psum = 1;
+			for (auto& [p, v] : t1->data->vars) {
+				psum *= pow(param, v);
+			}
+			result += psum * t1->data->coeff;
+		}
+		return result;
+	};
+
+	int mins = INT_MAX;
+	int mincoeff = INT_MAX;
+	for (auto t1 = pol->terms->begin(); t1; t1 = t1->next) {
+		for (auto [p, v] : t1->data->vars) {
+			int tps = (*t1->data->vars.begin()).second;
+			if (tps < mins) {
+				mins = tps;
+				mincoeff = abs(t1->data->coeff);
+			}
+		}
+		if (!t1->data->vars.size()) {
+			mins = 0;
+			mincoeff = abs(t1->data->coeff);
+		}
+	}
+
+	vector<double> dels;
+	if (calc(0) == 0)
+		dels.push_back(0);
+	for (int i = 1; i <= mincoeff; ++i) {
+		if (mincoeff % i == 0) {
+			if(calc(i) == 0)
+				dels.push_back(i);
+			if (calc(-i) == 0)
+				dels.push_back(-i);
+		}
+	}
+	return dels;
+}
+
 string Polynomial::to_string() {
 	string s = "";
 	for (auto it = this->terms->begin(); it != this->terms->end(); it = it->next) {
@@ -594,6 +653,7 @@ public:
 	String value;
 	String lastDrawValue;
 
+	~InputField();
 	InputField(WndClass* wnd, String name, Vector2f pos, Vector2f size, bool(*_Comp)(wchar_t), void(WndClass::* _Eval)(String));
 	void on_mousedown(Vector2f vec);
 	void text_entered(Event evnt);
@@ -898,7 +958,46 @@ public:
 			auto numbers_only = [](wchar_t c) -> bool {
 				return (c >= L'0' && c <= L'9') || c == L'-';
 			};
-			this->blockWindow->fields.push_back(new InputField(this, "Value", Vector2f(140, 100), Vector2f(130, 25), numbers_only, 0));
+			InputField* del2 = new InputField(this, "Value", Vector2f(140, 100), Vector2f(130, 25), numbers_only, 0);
+			this->blockWindow->fields.push_back(del2);
+			this->selectedField = del2;
+		}
+		catch (ReadExpection& ex) {
+			cout << "Error: " << ex.what() << endl;
+		}
+	}
+
+	void get_roots_user(vector<String>& str) {
+		try {
+			int num1 = Stream(str[0]).get_num(0, false);
+			if (num1 < 1 || num1 > this->polys->size)
+				throw ReadExpection(0, "Invalid arg1");
+			String str = "";
+			try {
+				auto fs = this->polys->operator[](num1 - 1)->data;
+				vector<double> poly2 = Polynomial::get_roots(fs);
+				str = "ROOTS OF " + fs->to_string() + "\n\nARE\n\n";
+				int id = 0;
+				for (double bx : poly2)
+					str += to_string(++id) + ") " + to_string(bx) + "\n";
+				if (!poly2.size())
+					str += "[None...]";
+			}
+			catch (ReadExpection& ex) {
+				str = "ERROR:\n" + ex.msg;
+			}
+
+			this->blockWindow = new BlockWindow<>(this, str, [](BlockWindow<>* blockWindow, void* ptr, int rs) {
+				return true;
+				}, [](BlockWindow<>* wnd, RenderWindow* wnd2) {
+					Text text;
+					text.setFont(g_Font);
+					text.setCharacterSize(16);
+					text.setFillColor(Color(0, 0, 0, 255));
+					text.setString(wnd->text);
+					text.setPosition(wnd->pos);
+					wnd2->draw(text);
+				}, nullptr);
 		}
 		catch (ReadExpection& ex) {
 			cout << "Error: " << ex.what() << endl;
@@ -922,6 +1021,9 @@ public:
 		this->activeFields.push_back(new InputFieldCollection({
 			new InputField(this, String("Index"), Vector2f(440, 180), Vector2f(70, 25), numbers_only, nullptr),
 		}, &WndClass::evaluate_user, "Evaluate"));
+		this->activeFields.push_back(new InputFieldCollection({
+			new InputField(this, String("Index"), Vector2f(440, 220), Vector2f(70, 25), numbers_only, nullptr),
+			}, &WndClass::get_roots_user, "Get roots"));
 
 		this->activeFields.push_back(new InputFieldCollection(new InputField(this, String("Save to file"), Vector2f(320, 540), Vector2f(250, 30), nullptr, &WndClass::save_file_user)));
 		this->activeFields.push_back(new InputFieldCollection(new InputField(this, String("Add from file"), Vector2f(320, 620), Vector2f(250, 30), nullptr, &WndClass::add_file_user)));
@@ -1101,6 +1203,10 @@ InputField::InputField(WndClass* wnd, String name, Vector2f pos, Vector2f size, 
 	this->window = wnd;
 }
 
+InputField::~InputField() {
+	if (this && this->window && this == this->window->selectedField)
+		this->window->selectedField = nullptr;
+}
 void InputFieldCollection::draw(RenderWindow* wnd) {
 	for (auto a : fields)
 		a->draw(wnd);
