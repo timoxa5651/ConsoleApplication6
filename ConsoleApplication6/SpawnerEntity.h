@@ -9,6 +9,7 @@ public:
 	Vec2f position;
 	std::map<decltype(BaseEntity::uid), BaseEntity*> entities;
 	bool hadEntities;
+	int moveableCount;
 
 	bool Contains(Vec2f point);
 	void EntityExit(BaseEntity* entity);
@@ -30,6 +31,7 @@ class SpawnerEntity : public BaseEntity
 public:
 	float zoneSize;
 
+	void DestroyZone(SpawnZone* zone);
 	SpawnZone* QueryZone(Vec2f position);
 	SpawnerEntity(OnSpawnCallback onSpawn, float population, float spawnPerTick, float zoneSize);
 	void SpawnAll();
