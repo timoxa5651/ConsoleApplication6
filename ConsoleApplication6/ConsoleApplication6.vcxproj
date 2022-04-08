@@ -144,18 +144,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="BaseEntity.cpp" />
-    <ClCompile Include="BaseFood.cpp" />
-    <ClCompile Include="BaseGame.cpp" />
     <ClCompile Include="ConsoleApplication6.cpp" />
-    <ClCompile Include="SnakeEntity.cpp" />
-    <ClCompile Include="SpawnerEntity.cpp" />
-    <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="BaseEntity.h" />
-    <ClInclude Include="BaseFood.h" />
-    <ClInclude Include="BaseGame.h" />
     <ClInclude Include="fmt\args.h" />
     <ClInclude Include="fmt\chrono.h" />
     <ClInclude Include="fmt\color.h" />
@@ -169,9 +160,6 @@
     <ClInclude Include="fmt\printf.h" />
     <ClInclude Include="fmt\ranges.h" />
     <ClInclude Include="fmt\xchar.h" />
-    <ClInclude Include="SnakeEntity.h" />
-    <ClInclude Include="SpawnerEntity.h" />
-    <ClInclude Include="Utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

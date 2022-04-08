@@ -1,27 +1,53 @@
 ﻿#include <iostream>
 #include <thread>
-
-#include "BaseGame.h"
-#include "Utils.h"
 #include "windows.h"
+#include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/Font.hpp>
+#include <SFML/Window/Event.hpp>
 
 using std::cout;
 using std::cin;
 using std::endl;
 
+using sf::RenderWindow;
+using sf::VideoMode;
+using sf::Event;
+using sf::Vector2f;
+using sf::Color;
+
+
+static sf::Font g_Font;
+
 int main()
 {
 	srand(time(0));
 
-	BaseGame::g_Instance = new BaseGame();
+	RenderWindow window(VideoMode(800, 800), "123");
 
-	BaseGame::g_Instance->Start();
-	double lastUpdateTime = Utils::Time();
-	while (BaseGame::g_Instance->IsRunning()) {
-		double nextUpdateTime = Utils::Time();
-		BaseGame::g_Instance->Update(nextUpdateTime - lastUpdateTime);
-		lastUpdateTime = nextUpdateTime;
-		//std::this_thread::sleep_for(std::chrono::microseconds(100));
+	g_Font.loadFromFile("arial.ttf");
+
+	while (window.isOpen())
+	{
+		Event event;
+		while (window.pollEvent(event))
+		{
+			if (event.type == Event::Closed) {
+				window.close();
+			}
+			else if (event.type == Event::MouseWheelScrolled)
+			{
+				
+			}
+			else if (event.type == Event::MouseButtonPressed) {
+				if (event.mouseButton.button == 0) {
+							
+				}
+			}
+		}
+		window.clear(Color(20, 20, 20, 255));
+
+		
+		window.display();
 	}
 	return 0;
 }
