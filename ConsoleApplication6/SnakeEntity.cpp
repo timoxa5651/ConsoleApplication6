@@ -133,7 +133,7 @@ void SnakeEntity::Bot_Update(float deltaTime) {
 	if(!sprintUpdated && canSprint)
 		shouldSprint = Utils::Time() - this->lastEnemyTime < 2.f;
 	if (shouldSprint) {
-		this->desiredMoveSpeed = 305.f;
+		this->desiredMoveSpeed = 650.f;
 	}
 	else {
 		this->desiredMoveSpeed = 155.f;
