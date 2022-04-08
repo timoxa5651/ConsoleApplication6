@@ -1,9 +1,7 @@
 ﻿#include <iostream>
 #include <thread>
-#include "windows.h"
-#include <SFML/Graphics/RenderWindow.hpp>
-#include <SFML/Graphics/Font.hpp>
-#include <SFML/Window/Event.hpp>
+#include "SFML/Graphics.hpp"
+
 
 using std::cout;
 using std::cin;
