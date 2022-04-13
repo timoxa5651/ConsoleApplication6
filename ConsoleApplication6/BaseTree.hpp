@@ -47,7 +47,8 @@ public:
 	using NodeType = DummyNode<T>;
 
 	BaseTree() = default;
-	virtual bool Insert(const T& value) = 0;
+	virtual bool Insert(const T& value) = 0;	
+	virtual bool Delete(const T& value) = 0;
 	virtual std::string TreeName() = 0;
 
 	virtual void InOrderInternal(void* call, bool ret) {}

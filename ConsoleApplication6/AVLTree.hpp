@@ -85,6 +85,63 @@ class AVLTree : public BaseTree<T>
 		return node;
 	}
 
+	PNode DeleteInternal(PNode head, const T& x, bool* result) {
+		if (head == NULL) 
+			return NULL;
+		if (x < head->data) {
+			head->left = this->DeleteInternal(head->left, x, result);
+		}
+		else if (x > head->data) {
+			head->right = this->DeleteInternal(head->right, x, result);
+		}
+		else {
+			if (result)
+				*result = true;
+			PNode r = head->right;
+			if (!head->right) {
+				PNode l = head->left;
+				head->left = head->right = 0;
+				delete head;
+				head = l;
+			}
+			else if (head->left == NULL) {
+				head->left = head->right = 0;
+				delete head;
+				head = r;
+			}
+			else {
+				while (r->left != NULL) r = r->left;
+				head->data = r->data;
+				head->right = this->DeleteInternal(head->right, r->data, result);
+			}
+		}
+		if (!head) 
+			return head;
+		head->UpdateHeight();
+		int bal = head->GetBalance();
+		int hl = head->left ? head->left->height : 0;
+		int hr = head->right ? head->right->height : 0;
+		if (bal > 1) {
+			if (hl >= hr) {
+				return this->RotateRight(head);
+			}
+			else {
+				head->left = this->RotateLeft(head->left);
+				return this->RotateRight(head);
+			}
+		}
+		else if (bal < -1) {
+			if (hr >= hl) {
+				return this->RotateLeft(head);
+			}
+			else {
+				head->right = this->RotateRight(head->right);
+				return this->RotateLeft(head);
+			}
+		}
+		return head;
+	}
+
 	template<typename F>
 	void InOrderInternal2(PNode node, int height, F call) {
 		if (node == nullptr) return;
@@ -117,6 +174,12 @@ public:
 	virtual bool Insert(const T& value) final {
 		bool result = false;
 		this->root = this->InsertInternal(this->root, value, &result);
+		return result;
+	}
+
+	virtual bool Delete(const T& value) {
+		bool result = false;
+		this->root = this->DeleteInternal(this->root, value, &result);
 		return result;
 	}
 

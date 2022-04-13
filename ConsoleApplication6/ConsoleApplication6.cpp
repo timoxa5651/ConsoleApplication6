@@ -1,5 +1,6 @@
 ﻿#include <iostream>
 #include <thread>
+#include <exception>
 #include "SFML/Graphics.hpp"
 
 #include "AVLTree.hpp"
@@ -12,14 +13,177 @@ using std::vector;
 using std::string;
 using std::map;
 using std::function;
+using std::exception;
 
 using sf::RenderWindow;
 using sf::VideoMode;
 using sf::Event;
 using sf::Vector2f;
 using sf::Color;
+using sf::String;
 
 static sf::Font g_Font;
+
+class ReadExpection : exception {
+public:
+	int position;
+	string msg;
+	string fmsg;
+
+	ReadExpection(int position, string message = "") {
+		this->position = position;
+		this->msg = message;
+	}
+
+
+	virtual const char* what() throw()
+	{
+		this->fmsg = this->msg + " at pos " + std::to_string(position + 1);
+		return this->fmsg.c_str();
+	}
+};
+class Stream {
+	int off;
+public:
+	String str;
+	Stream(String s = "") {
+		this->str = s;
+		this->off = 0;
+	}
+
+	int get_cur() {
+		return this->off;
+	}
+	int get_size() {
+		return this->str.getSize();
+	}
+	void set_cur(int v) {
+		this->off = v;
+	}
+	void seek(int c) {
+		this->off += c;
+	}
+
+	bool is_end() {
+		return this->off >= this->str.getSize();
+	}
+
+	int read_expect(vector<String> val, string errmsg = "") {
+		for (int i = 0; i < val.size(); ++i) {
+			String& s = val[i];
+			if (this->str.substring(this->off, s.getSize()) == s) {
+				this->off += s.getSize();
+				return i;
+			}
+		}
+		throw ReadExpection(this->off, errmsg);
+	}
+
+	int peek_expect(vector<String> val, string errmsg = "") {
+		for (int i = 0; i < val.size(); ++i) {
+			String& s = val[i];
+			if (this->str.substring(this->off, s.getSize()) == s) {
+				return i;
+			}
+		}
+		throw ReadExpection(this->off, errmsg);
+	}
+
+	void read_while(char chr) {
+		while (this->str[this->off] == chr) {
+			this->off += 1;
+		}
+	}
+	wchar_t read_char() {
+		return this->str[this->off++];
+	}
+	wchar_t peek_char() {
+		return this->str[this->off];
+	}
+
+	String get_closing_block(int st, char add, char term, int cnt = 1) {
+		bool flag = false;
+		String rstr;
+		for (int i = st; i < this->str.getSize(); ++i) {
+			rstr += this->str[i];
+			if (this->str[i] == term) {
+				--cnt;
+				flag = true;
+			}
+			else if (this->str[i] == add) {
+				++cnt;
+				flag = true;
+			}
+
+			if (flag && cnt <= 0) {
+				break;
+			}
+		}
+		return rstr;
+	}
+
+	String get_block(int st, char term) {
+		String rstr;
+		for (int i = st; i < this->str.getSize(); ++i) {
+			rstr += this->str[i];
+			if (this->str[i] == term)
+				break;
+		}
+		return rstr;
+	}
+
+	String get_block(int st, vector<char> term, int* ch = 0) {
+		String rstr;
+		for (int i = st; i < this->str.getSize(); ++i) {
+			bool flag = true;
+			for (int j = 0; j < term.size(); ++j) {
+				if (term[j] == this->str[i]) {
+					flag = false;
+					if (ch) {
+						*ch = j;
+					}
+					break;
+				}
+			}
+			rstr += this->str[i];
+			if (!flag) {
+				break;
+			}
+		}
+		return rstr;
+	}
+
+	int get_num(int st, bool read, bool negat = false) {
+		bool ng = this->str[st] == '-';
+		if (!negat && ng)
+			throw ReadExpection(this->off, "Only positive numbers are allowed");
+		if (ng) {
+			st += 1;
+			if (read)
+				this->off += 1;
+		}
+
+		int rd = 0, rs = 0;
+		for (int i = st; i < this->str.getSize(); ++i) {
+			if (this->str[i] >= '0' && this->str[i] <= '9') {
+				rd = std::max(1, rd * 10);
+			}
+			else {
+				break;
+			}
+		}
+		if (!rd) {
+			throw ReadExpection(this->off, "Number expected");
+		}
+		for (int i = st; rd; ++i, rd /= 10) {
+			rs += (this->str[i] - '0') * rd;
+			if (read) {
+				this->off += 1;
+			}
+		}
+		return rs * (ng ? -1 : 1);
+	}
+};
 
 enum class TreeOpType {
 	Insert,
@@ -47,6 +211,10 @@ class TreeView {
 			this->tree->Insert(opr.param);
 			break;
 		}
+		case TreeOpType::Delete: {
+			this->tree->Delete(opr.param);
+			break;
+		}
 		}
 	}
 
@@ -55,6 +223,9 @@ class TreeView {
 	bool hasChanges;
 	vector<map<int, PNode>> grid;
 	vector<map<int, float>> xes;
+
+	constexpr static float circleSize = 60.f;
+	constexpr static float circleSpacing = 80.f;
 public:
 	TreeView() {
 		this->tree = new V();
@@ -80,6 +251,8 @@ public:
 			heights[height].push_back(node);
 		});
 		int max_height = heights.size();
+		if (!max_height)
+			return;
 		this->grid.resize(max_height, map<int, PNode>());
 		this->xes.resize(max_height, map<int, float>());
 		PNode root = heights[0][0];
@@ -106,10 +279,6 @@ public:
 
 		heights.clear();
 
-
-		constexpr float circleSize = 30.f;
-		constexpr float circleSpacing = 40.f;
-
 		for (int i = 0; i < pow(2, this->grid.size() - 1); ++i) {
 			this->xes[this->grid.size() - 1][i] = i * (circleSize + circleSpacing);
 		}
@@ -130,9 +299,7 @@ public:
 			this->RebuildGrid();
 			this->hasChanges = false;
 		}
-		
-		constexpr float circleSize = 30.f;
-		constexpr float circleSpacing = 40.f;
+
 		auto draw_node = [&](Vector2f coords, PNode node, Vector2f parentPos) {
 			sf::CircleShape shape(circleSize);
 			shape.setFillColor(sf::Color(0, 0, 255));
@@ -148,11 +315,6 @@ public:
 			}
 		};
 
-		float wsize = window->getSize().x;
-		int maxLvl = this->grid.size();
-		float curSpacing = circleSpacing;
-		float startSpacing = 0.f;
-		float rowLen = pow(2, this->grid.size() - 1) * (circleSize + curSpacing) + circleSize;
 		for (int level = this->grid.size() - 1; level >= 0; --level) {
 			auto& definition = this->grid[level];
 			auto GridToCoords = [&](int x, int y) {
@@ -167,6 +329,26 @@ public:
 			}
 		}
 	}
+
+	PNode FindByPos(Vector2f world) {
+		for (int level = this->grid.size() - 1; level >= 0; --level) {
+			auto& definition = this->grid[level];
+			auto GridToCoords = [&](int x, int y) {
+				if (y < 0)
+					return Vector2f(FLT_MAX, FLT_MAX);
+				Vector2f coords = Vector2f(this->xes[y][x], y * 125);
+				return coords;
+			};
+
+			for (auto& [xpos, node] : definition) {
+				Vector2f ppos = GridToCoords(xpos, level);
+				if (sf::FloatRect(ppos, Vector2f(circleSize, circleSize) * 2.f).contains(world)) {
+					return node;
+				}
+			}
+		}
+		return 0;
+	}
 };
 
 template<typename T>
@@ -175,9 +357,13 @@ class TreeDrawer {
 	vector<TreeView<T, BaseTree<T>>*> treeViews;
 	int activeViewIndex;
 	RenderWindow* window;
+	String insFieldText;
 
 public:
+	float windowZoomInternal;
+
 	TreeDrawer(RenderWindow* window) {
+		this->windowZoomInternal = 1.f;
 		this->window = window;
 
 		this->treeViews.push_back(reinterpret_cast<decltype(treeViews)::value_type>(new TreeView<T, AVLTree<T>>()));
@@ -188,9 +374,66 @@ public:
 		this->opHistory.push_back(TreeOp(TreeOpType::Insert, val));
 		this->treeViews[this->activeViewIndex]->UpdateOperations(this->opHistory);
 	}
+	void DeleteAll(const T& val) {
+		this->opHistory.push_back(TreeOp(TreeOpType::Delete, val));
+		this->treeViews[this->activeViewIndex]->UpdateOperations(this->opHistory);
+	}
 
 	void Frame() {
 		this->treeViews[this->activeViewIndex]->Draw(this->window);
+
+		Vector2f dtv2 = Vector2f(this->window->getSize().x - 150, 10);
+		Vector2f asd = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 70, dtv2.y));
+		Vector2f dtv = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x, dtv2.y));
+		Vector2f end = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x + 150, dtv2.y + 30));
+
+		sf::RectangleShape rect(end - dtv);
+		rect.setPosition(dtv);
+		rect.setFillColor(Color(255, 255, 255, 255));
+		this->window->draw(rect);
+
+		sf::Text text;
+		text.setFont(g_Font);
+		text.setScale(Vector2f(this->windowZoomInternal, this->windowZoomInternal));
+		text.setCharacterSize(16);
+		text.setFillColor(Color(0, 0, 0, 255));
+		text.setString(this->insFieldText);
+		text.setPosition(dtv);
+		this->window->draw(text);
+
+		sf::Text text2;
+		text2.setFont(g_Font);
+		text2.setScale(Vector2f(this->windowZoomInternal, this->windowZoomInternal));
+		text2.setCharacterSize(16);
+		text2.setString(String("Insert N"));
+		text2.setPosition(asd);
+		this->window->draw(text2);
+	}
+
+	void text_entered(Event evnt) {
+		if (evnt.text.unicode == 13) {
+			try {
+				Stream str = Stream(this->insFieldText);
+				this->insFieldText = "";
+				int num = str.get_num(0, true, true);
+				this->InsertAll(num);
+			}
+			catch (...) {}
+		}
+		else if (evnt.text.unicode == 8) { //backspace
+			if (this->insFieldText.getSize())
+				this->insFieldText = this->insFieldText.substring(0, this->insFieldText.getSize() - 1);
+		}
+		else {
+			this->insFieldText += evnt.text.unicode;
+		}
+	}
+
+	void OnClicked(Vector2f world) {
+		auto node = this->treeViews[this->activeViewIndex]->FindByPos(world);
+		if (node) {
+			this->DeleteAll(node->data);
+		}
 	}
 };
 
@@ -205,7 +448,7 @@ int main()
 
 	bool moving = false;
 	sf::Vector2f oldPos;
-	float zoom = 5.f;
+	float zoom = 3.f;
 	sf::View view = window.getDefaultView();
 	view.setSize(window.getDefaultView().getSize());
 	view.zoom(zoom);
@@ -224,6 +467,8 @@ int main()
 				if (event.mouseButton.button == 0) {
 					moving = true;
 					oldPos = window.mapPixelToCoords(sf::Vector2i(event.mouseButton.x, event.mouseButton.y));
+					drawer->OnClicked(oldPos);
+					// cout << oldPos.x << " " << oldPos.y << endl;
 				}
 			}
 			else if (event.type == sf::Event::MouseButtonReleased) {
@@ -244,18 +489,20 @@ int main()
 				if (moving)
 					break;
 				if (event.mouseWheelScroll.delta <= -1)
-					zoom = std::min(30.f, zoom + 0.2f);
+					zoom = std::min(30.f, zoom + 0.5f);
 				else if (event.mouseWheelScroll.delta >= 1)
-					zoom = std::max(0.5f, zoom - 0.2f);
+					zoom = std::max(0.5f, zoom - 0.5f);
 				view.setSize(window.getDefaultView().getSize());
 				view.zoom(zoom);
 				window.setView(view);
 			}
+			else if (event.type == Event::TextEntered) {
+				drawer->text_entered(event);
+			}
 		}
 		window.clear(Color(20, 20, 20, 255));
 
-		if(rand() % 500 == 0)
-			drawer->InsertAll(rand());
+		drawer->windowZoomInternal = zoom;
 		drawer->Frame();
 
 		window.display();
