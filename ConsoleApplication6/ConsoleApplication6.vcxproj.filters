@@ -16,6 +16,9 @@
     <Filter Include="Файлы заголовков\fmt">
       <UniqueIdentifier>{0e74a70e-6801-4fb9-b608-a679e95dd43b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Исходные файлы\trees">
+      <UniqueIdentifier>{6986ab3f-62ac-429b-9d80-74b08b5dcb1f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConsoleApplication6.cpp">
@@ -61,6 +64,12 @@
     </ClInclude>
     <ClInclude Include="fmt\args.h">
       <Filter>Файлы заголовков\fmt</Filter>
+    </ClInclude>
+    <ClInclude Include="BaseTree.hpp">
+      <Filter>Исходные файлы\trees</Filter>
+    </ClInclude>
+    <ClInclude Include="AVLTree.hpp">
+      <Filter>Исходные файлы\trees</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
