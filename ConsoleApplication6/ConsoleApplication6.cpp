@@ -1,10 +1,11 @@
 ﻿#include <iostream>
 #include <thread>
 #include <exception>
+#include <functional>
 #include "SFML/Graphics.hpp"
 
-#include "AVLTree.hpp"
-
+static sf::Font g_Font;
+static int g_FrameCount = 0;
 using std::cout;
 using std::cin;
 using std::endl;
@@ -22,7 +23,7 @@ using sf::Vector2f;
 using sf::Color;
 using sf::String;
 
-static sf::Font g_Font;
+#include "AVLTree.hpp"
 
 class ReadExpection : exception {
 public:
@@ -224,8 +225,6 @@ class TreeView {
 	vector<map<int, PNode>> grid;
 	vector<map<int, float>> xes;
 
-	constexpr static float circleSize = 60.f;
-	constexpr static float circleSpacing = 80.f;
 public:
 	TreeView() {
 		this->tree = new V();
@@ -280,7 +279,7 @@ public:
 		heights.clear();
 
 		for (int i = 0; i < pow(2, this->grid.size() - 1); ++i) {
-			this->xes[this->grid.size() - 1][i] = i * (circleSize + circleSpacing);
+			this->xes[this->grid.size() - 1][i] = i * (Node::GetNodeSize() + Node::GetNodeSpacing());
 		}
 
 		for (int level = this->grid.size() - 2; level >= 0; --level) {
@@ -301,18 +300,7 @@ public:
 		}
 
 		auto draw_node = [&](Vector2f coords, PNode node, Vector2f parentPos) {
-			sf::CircleShape shape(circleSize);
-			shape.setFillColor(sf::Color(0, 0, 255));
-			shape.setOutlineThickness(0.f);
-			shape.setPosition(coords);
-			window->draw(shape);
-
-			if (parentPos.x != FLT_MAX) {
-				sf::VertexArray lines(sf::Lines, 2);
-				lines[0] = sf::Vertex(coords);
-				lines[1] = sf::Vertex(parentPos);
-				window->draw(lines);
-			}
+			node->Draw(window, coords, parentPos);
 		};
 
 		for (int level = this->grid.size() - 1; level >= 0; --level) {
@@ -320,7 +308,7 @@ public:
 			auto GridToCoords = [&](int x, int y) {
 				if (y < 0)
 					return Vector2f(FLT_MAX, FLT_MAX);
-				Vector2f coords = Vector2f(this->xes[y][x], y * 125);
+				Vector2f coords = Vector2f(this->xes[y][x], y * (Node::GetNodeSize() * 2.8f));
 				return coords;
 			};
 
@@ -336,13 +324,13 @@ public:
 			auto GridToCoords = [&](int x, int y) {
 				if (y < 0)
 					return Vector2f(FLT_MAX, FLT_MAX);
-				Vector2f coords = Vector2f(this->xes[y][x], y * 125);
+				Vector2f coords = Vector2f(this->xes[y][x], y * (Node::GetNodeSize() * 2.8f));
 				return coords;
 			};
 
 			for (auto& [xpos, node] : definition) {
 				Vector2f ppos = GridToCoords(xpos, level);
-				if (sf::FloatRect(ppos, Vector2f(circleSize, circleSize) * 2.f).contains(world)) {
+				if (sf::FloatRect(ppos, Vector2f(Node::GetNodeSize(), Node::GetNodeSize()) * 2.f).contains(world)) {
 					return node;
 				}
 			}
@@ -489,7 +477,7 @@ int main()
 				if (moving)
 					break;
 				if (event.mouseWheelScroll.delta <= -1)
-					zoom = std::min(30.f, zoom + 0.5f);
+					zoom = zoom + 0.5f;
 				else if (event.mouseWheelScroll.delta >= 1)
 					zoom = std::max(0.5f, zoom - 0.5f);
 				view.setSize(window.getDefaultView().getSize());
@@ -500,12 +488,13 @@ int main()
 				drawer->text_entered(event);
 			}
 		}
-		window.clear(Color(20, 20, 20, 255));
+		window.clear(Color(50, 50, 50, 255));
 
 		drawer->windowZoomInternal = zoom;
 		drawer->Frame();
 
 		window.display();
+		++g_FrameCount;
 	}
 	return 0;
 }

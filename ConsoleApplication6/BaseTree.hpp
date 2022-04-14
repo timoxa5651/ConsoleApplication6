@@ -31,6 +31,16 @@ public:
 			this->right = 0;
 		}
 	}
+
+	static float GetNodeSize() {
+		return 60.f;
+	}
+	static float GetNodeSpacing() {
+		return 80.f;
+	}
+	virtual void Draw(sf::RenderWindow* window, sf::Vector2f position, sf::Vector2f parentPos) {
+
+	}
 };
 
 template<typename T>

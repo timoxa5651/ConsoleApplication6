@@ -16,6 +16,40 @@ class AVLNode : public BaseNode<T, AVLNode<T>> {
 		return lh - rh;
 	}
 
+	static float GetNodeSize() {
+		return 120.f;
+	}
+
+
+	void Draw(sf::RenderWindow* window, sf::Vector2f position, sf::Vector2f parentPos) {
+		float freq = 0.0001f;
+		sf::CircleShape shape(this->GetNodeSize() * 0.5f);
+		sf::Color clr = sf::Color(std::sin(freq * g_FrameCount) * 127 + 128, std::sin(freq * g_FrameCount + 2) * 127 + 128, std::sin(freq * g_FrameCount + 4) * 127 + 128);
+		shape.setFillColor(clr);
+		shape.setOutlineThickness(0.f);
+		shape.setPosition(position);
+		window->draw(shape);
+		Vector2f size = Vector2f(this->GetNodeSize(), this->GetNodeSize());
+		Vector2f end = position;
+
+		sf::Text text;
+		text.setFont(g_Font);
+		text.setCharacterSize(32);
+		text.setFillColor(sf::Color(255 - clr.r, 255 - clr.g, 255 - clr.b, clr.a));
+		text.setString(sf::String(std::to_string(this->data)));
+		sf::FloatRect bdns = text.getLocalBounds();
+		Vector2f pos = position + sf::Vector2f(size.x - bdns.width, size.y - bdns.height) * 0.5f;
+		text.setPosition(pos);
+		window->draw(text);
+
+		if (parentPos.x != FLT_MAX) {
+			sf::VertexArray lines(sf::Lines, 2);
+			lines[0] = sf::Vertex(position + Vector2f(this->GetNodeSize() / 2.f, 0.f));
+			lines[1] = sf::Vertex(parentPos + Vector2f(this->GetNodeSize() / 2.f, this->GetNodeSize()));
+			window->draw(lines);
+		}
+	}
+
 	AVLNode() {
 		this->left = this->right = nullptr;
 		this->height = 1;
