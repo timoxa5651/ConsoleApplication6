@@ -1,6 +1,7 @@
 ﻿#include <iostream>
 #include <thread>
 #include <exception>
+#include <algorithm>
 #include <functional>
 #include "SFML/Graphics.hpp"
 
@@ -290,8 +291,19 @@ public:
 
 		heights.clear();
 
+		float spacing = Node::GetNodeSize() + Node::GetNodeSpacing();
+		float maxWidth = spacing;
+		for (int i = 1; i < this->grid.size(); ++i) {
+			//maxWidth += ((this->grid[i].size() / (float)pow(2, i)) * spacing);
+		}
+		//maxWidth /= (float)this->grid.size();
+		cout << maxWidth << endl;
+
+		auto& last = this->grid[this->grid.size() - 1];
+		auto iter = last.begin();
+		int cur = 0;
 		for (int i = 0; i < pow(2, this->grid.size() - 1); ++i) {
-			this->xes[this->grid.size() - 1][i] = i * (Node::GetNodeSize() + Node::GetNodeSpacing());
+			this->xes[this->grid.size() - 1][i] = i * maxWidth;
 		}
 
 		for (int level = this->grid.size() - 2; level >= 0; --level) {
@@ -300,7 +312,13 @@ public:
 				float x1 = this->xes[level + 1][i * 2];
 				float x2 = this->xes[level + 1][i * 2 + 1];
 
-				this->xes[level][i] = (x1 + x2) / 2.f;
+				float trg = (x1 + x2) / 2.f;
+				if (i > 0) {
+					//float prev = this->xes[level][i - 1];
+					//if(prev != trg)
+						//trg += std::max(0.f, Node::GetNodeSize() + Node::GetNodeSpacing() - trg + prev);
+				}
+				this->xes[level][i] = trg;
 			}
 		}
 	}

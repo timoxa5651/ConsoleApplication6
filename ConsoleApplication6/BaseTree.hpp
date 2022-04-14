@@ -36,11 +36,11 @@ public:
 		return 60.f;
 	}
 	static float GetNodeSpacing() {
-		return 80.f;
+		return 50.f;
 	}
 
 	virtual void Draw(sf::RenderWindow* window, sf::Vector2f position, sf::Vector2f parentPos) {
-		float freq = 0.0001f;
+		float freq = 0.0002f;
 		sf::CircleShape shape(this->GetNodeSize() * 0.5f);
 		sf::Color clr = sf::Color(std::sin(freq * g_FrameCount) * 127 + 128, std::sin(freq * g_FrameCount + 2) * 127 + 128, std::sin(freq * g_FrameCount + 4) * 127 + 128);
 		shape.setFillColor(clr);
