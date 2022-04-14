@@ -24,6 +24,7 @@ using sf::Color;
 using sf::String;
 
 #include "AVLTree.hpp"
+#include "SplayTree.hpp"
 
 class ReadExpection : exception {
 public:
@@ -232,6 +233,17 @@ public:
 		this->hasChanges = false;
 	}
 
+	~TreeView() {
+		if (this->tree) {
+			delete this->tree;
+			this->tree = 0;
+		}
+	}
+
+	string GetName() {
+		return this->tree->TreeName();
+	}
+
 	void UpdateOperations(const vector<TreeOp<T>>& latest) {
 		for (int i = historyIndex; i < latest.size(); ++i) {
 			this->ProcessOperation(latest[i]);
@@ -355,6 +367,7 @@ public:
 		this->window = window;
 
 		this->treeViews.push_back(reinterpret_cast<decltype(treeViews)::value_type>(new TreeView<T, AVLTree<T>>()));
+		this->treeViews.push_back(reinterpret_cast<decltype(treeViews)::value_type>(new TreeView<T, SplayTree<T>>()));
 		this->activeViewIndex = 0;
 	}
 
@@ -365,6 +378,13 @@ public:
 	void DeleteAll(const T& val) {
 		this->opHistory.push_back(TreeOp(TreeOpType::Delete, val));
 		this->treeViews[this->activeViewIndex]->UpdateOperations(this->opHistory);
+	}
+
+	void SwitchView(int desiredView) {
+		auto prevView = this->treeViews[this->activeViewIndex];
+		this->activeViewIndex = desiredView;
+		auto curView = this->treeViews[this->activeViewIndex];
+		curView->UpdateOperations(this->opHistory);
 	}
 
 	void Frame() {
@@ -396,6 +416,30 @@ public:
 		text2.setString(String("Insert N"));
 		text2.setPosition(asd);
 		this->window->draw(text2);
+
+		for (int i = 0; i < this->treeViews.size(); ++i) {
+			constexpr int wid = 80;
+
+			Vector2f dtv2 = Vector2f(i * wid, this->window->getSize().y - 60);
+			Vector2f start = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x, dtv2.y));
+			Vector2f end = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x + wid, dtv2.y + 60));
+
+			sf::RectangleShape rect(end - start);
+			rect.setPosition(start);
+			rect.setFillColor(Color(255, 255, 255, 255));
+			this->window->draw(rect);
+
+			text2.setString(this->treeViews[i]->GetName());
+			text2.setPosition(start);
+			text2.setFillColor(Color(0, 0, 0, 255));
+			this->window->draw(text2);
+
+			sf::VertexArray lines(sf::Lines, 2);
+			lines[0] = sf::Vertex(sf::Vector2f(end.x, start.y));
+			lines[1] = sf::Vertex(sf::Vector2f(end.x, end.y));
+			lines[0].color = lines[1].color = sf::Color(0, 0, 0, 255);
+			window->draw(lines);
+		}
 	}
 
 	void text_entered(Event evnt) {
@@ -418,6 +462,19 @@ public:
 	}
 
 	void OnClicked(Vector2f world) {
+		for (int i = 0; i < this->treeViews.size(); ++i) {
+			constexpr int wid = 80;
+
+			Vector2f dtv2 = Vector2f(i * wid, this->window->getSize().y - 60);
+			Vector2f start = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x, dtv2.y));
+			Vector2f end = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x + wid, dtv2.y + 60));
+
+			if (sf::FloatRect(start, end - start).contains(world)) {
+				this->SwitchView(i);
+				return;
+			}
+		}
+
 		auto node = this->treeViews[this->activeViewIndex]->FindByPos(world);
 		if (node) {
 			this->DeleteAll(node->data);
