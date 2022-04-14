@@ -145,8 +145,8 @@ class SplayTree : public BaseTree<T>
 		*result = true;
 	}
 
-	PNode DeleteInternal(PNode head, const T& x, bool* result) {
-		return 0;
+	void DeleteInternal(PNode head, const T& x, bool* result) {
+		
 	}
 
 	template<typename F>
@@ -186,7 +186,7 @@ public:
 
 	virtual bool Delete(const T& value) {
 		bool result = false;
-		this->root = this->DeleteInternal(this->root, value, &result);
+		this->DeleteInternal(this->root, value, &result);
 		return result;
 	}
 

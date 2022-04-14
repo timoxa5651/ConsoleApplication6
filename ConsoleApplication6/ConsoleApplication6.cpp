@@ -385,6 +385,10 @@ public:
 		this->activeViewIndex = desiredView;
 		auto curView = this->treeViews[this->activeViewIndex];
 		curView->UpdateOperations(this->opHistory);
+		sf::View view = this->window->getView();
+		sf::Vector2f newPos = Vector2f(0, 0);
+		view.setCenter(newPos);
+		window->setView(view);
 	}
 
 	void Frame() {
