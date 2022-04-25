@@ -156,22 +156,13 @@ class SplayTree : public BaseTree<T>
 		call(node, height);
 		this->InOrderInternal2(node->right, height + 1, call);
 	}
-	template<typename F>
-	bool InOrderInternal3(PNode node, int height, F call) {
-		if (node == nullptr) return true;
-		if (this->InOrderInternal3(node->left, height + 1, call))
-			return true;
-		if (call(node, height))
-			return true;
-		if (this->InOrderInternal3(node->right, height + 1, call))
-			return true;
-	}
 
-	virtual void InOrderInternal(void* call, bool ret) override {
-		if (!ret)
-			return this->InOrderInternal2(this->root, 0, reinterpret_cast<void(*)(PNode, int)>(call));
-		this->InOrderInternal3(this->root, 0, reinterpret_cast<bool(*)(PNode, int)>(call));
+	virtual void InOrderInternal(void* call) override {
+		return this->InOrderInternal2(this->root, 0, reinterpret_cast<void(*)(PNode, int)>(call));
 	}
+	virtual void* GetRootInternal() override {
+		return reinterpret_cast<void*>(this->root);
+	};
 
 public:
 	PNode root;

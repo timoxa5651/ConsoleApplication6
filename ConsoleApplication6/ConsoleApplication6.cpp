@@ -3,6 +3,7 @@
 #include <exception>
 #include <algorithm>
 #include <functional>
+#include <tuple>
 #include "SFML/Graphics.hpp"
 
 static sf::Font g_Font;
@@ -293,11 +294,44 @@ public:
 
 		float spacing = Node::GetNodeSize() + Node::GetNodeSpacing();
 		float maxWidth = spacing;
-		for (int i = 1; i < this->grid.size(); ++i) {
-			//maxWidth += ((this->grid[i].size() / (float)pow(2, i)) * spacing);
+		double lb = 0.0, rb = maxWidth;//maxWidth;
+		while (rb - lb > 0.01) {
+			double tmid = (lb + rb) * 0.5;
+
+			auto IsOkay = [&](double testWidth) {
+				vector<double> widths;
+				widths.push_back(testWidth);
+				for (int level = this->grid.size() - 2; level >= 0; --level) {
+					widths.push_back(widths[widths.size() - 1] * 2);
+				}
+				reverse(widths.begin(), widths.end());
+
+				for (int level = this->grid.size() - 1; level >= 0; --level) {
+					auto& mp = this->grid[level];
+					double prevX = -spacing;
+					for (auto& [idx, node] : mp) {
+						double curX = widths[level] * idx;
+						if (curX - prevX < spacing)
+							return false;
+						prevX = curX;
+					}
+				}
+				return true;
+			};
+
+			if (IsOkay(tmid)) {
+				// cout << "hei " << tmid << " OK" << endl;
+				rb = tmid;
+			}
+			else {
+				// cout << "hei " << tmid << " NOT OK" << endl;
+				lb = tmid;
+			}
 		}
+
 		//maxWidth /= (float)this->grid.size();
-		cout << maxWidth << endl;
+		maxWidth = (rb + lb) * 0.5f;
+		cout << "Optimal width: " << (rb + lb) * 0.5 << endl;
 
 		auto& last = this->grid[this->grid.size() - 1];
 		auto iter = last.begin();
@@ -320,6 +354,9 @@ public:
 				}
 				this->xes[level][i] = trg;
 			}
+			float x1 = this->xes[level + 1][0];
+			float x2 = this->xes[level + 1][1];
+			// cout << "Level " << level << " wid: " << (x2 - x1) << endl;
 		}
 	}
 
@@ -335,15 +372,38 @@ public:
 
 		for (int level = this->grid.size() - 1; level >= 0; --level) {
 			auto& definition = this->grid[level];
-			auto GridToCoords = [&](int x, int y) {
-				if (y < 0)
-					return Vector2f(FLT_MAX, FLT_MAX);
-				Vector2f coords = Vector2f(this->xes[y][x], y * (Node::GetNodeSize() * 2.8f));
-				return coords;
-			};
 
 			for (auto& [xpos, node] : definition) {
-				draw_node(GridToCoords(xpos, level), node, GridToCoords(xpos / 2, level - 1));
+				static auto GetVals = [](PNode root, PNode target) -> std::tuple<double, double> {
+					double sum = 0, prevSum = 0;
+					double mult = 1;
+					PNode q = root;
+					while (q != target) {
+						prevSum = sum;
+						if (target->data < q->data) {
+							sum -= mult;
+							q = q->left;
+						}
+						else {
+							sum += mult;
+							q = q->right;
+						}
+						mult /= 2;
+					}
+					return { prevSum, sum };
+				};
+
+				static auto GridToCoords = [](double vl1, double vl2,  int x, int y) -> std::tuple<Vector2f, Vector2f> {
+					Vector2f nodeCoords = Vector2f(pow(2, x) * vl1 * Node::GetNodeSize(), y * (Node::GetNodeSize() * 2.8f));
+					Vector2f parentCoords = Vector2f(FLT_MAX, FLT_MAX);
+					if (y > 0)
+						parentCoords = Vector2f(pow(2, x) * vl2 * Node::GetNodeSize(), (y - 1) * (Node::GetNodeSize() * 2.8f));
+					return { nodeCoords, parentCoords };
+				};
+
+				auto [vl2, vl1] = GetVals(this->tree->GetRoot(), node);
+				auto [nodePos, parentPos] = GridToCoords(vl1, vl2, this->grid.size() - 1, level);
+				draw_node(nodePos, node, parentPos);
 			}
 		}
 	}
@@ -360,7 +420,7 @@ public:
 
 			for (auto& [xpos, node] : definition) {
 				Vector2f ppos = GridToCoords(xpos, level);
-				if (sf::FloatRect(ppos, Vector2f(Node::GetNodeSize(), Node::GetNodeSize()) * 2.f).contains(world)) {
+				if (sf::FloatRect(ppos, Vector2f(Node::GetNodeSize(), Node::GetNodeSize())).contains(world)) {
 					return node;
 				}
 			}

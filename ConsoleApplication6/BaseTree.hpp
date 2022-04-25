@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <functional>
 
+using std::pair;
+
 template <typename T, class V>
 class BaseNode {
 	/*template<typename> friend class AVLTree;
@@ -78,6 +80,10 @@ class DummyNode : public BaseNode<T, DummyNode<T>> {
 template <typename T>
 class BaseTree
 {
+	virtual void* GetRootInternal() {
+		return nullptr;
+	}
+	virtual void InOrderInternal(void* call) {}
 public:
 	using Type = T;
 	using NodeType = DummyNode<T>;
@@ -87,13 +93,11 @@ public:
 	virtual bool Delete(const T& value) = 0;
 	virtual std::string TreeName() = 0;
 
-	virtual void InOrderInternal(void* call, bool ret) {}
-
 	void InOrder(void(*call)(NodeType*, int)) {
-		return this->InOrderInternal(reinterpret_cast<void*>(call), false);
+		return this->InOrderInternal(reinterpret_cast<void*>(call));
 	}
 
-	void InOrder(bool(*call)(NodeType*, int)) {
-		return this->InOrderInternal(reinterpret_cast<void*>(call), true);
-	}
+	virtual NodeType* GetRoot() {
+		return reinterpret_cast<NodeType*>(this->GetRootInternal());
+	};
 };
