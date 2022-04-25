@@ -3,7 +3,6 @@
 #include <exception>
 #include <algorithm>
 #include <functional>
-#include <tuple>
 #include "SFML/Graphics.hpp"
 
 static sf::Font g_Font;
@@ -222,13 +221,14 @@ class TreeView {
 		}
 	}
 
-	V* tree;
 	int historyIndex;
-	bool hasChanges;
 	vector<map<int, PNode>> grid;
 	vector<map<int, float>> xes;
 
 public:
+	V* tree;
+	bool hasChanges;
+
 	TreeView() {
 		this->tree = new V();
 		this->historyIndex = 0;
@@ -295,42 +295,46 @@ public:
 		float spacing = Node::GetNodeSize() + Node::GetNodeSpacing();
 		float maxWidth = spacing;
 		double lb = 0.0, rb = maxWidth;//maxWidth;
-		while (rb - lb > 0.01) {
-			double tmid = (lb + rb) * 0.5;
+#if 1
+		if (this->tree->UsesAutoShrink()) {
+			while (rb - lb > 0.001) {
+				double tmid = (lb + rb) * 0.5;
 
-			auto IsOkay = [&](double testWidth) {
-				vector<double> widths;
-				widths.push_back(testWidth);
-				for (int level = this->grid.size() - 2; level >= 0; --level) {
-					widths.push_back(widths[widths.size() - 1] * 2);
-				}
-				reverse(widths.begin(), widths.end());
-
-				for (int level = this->grid.size() - 1; level >= 0; --level) {
-					auto& mp = this->grid[level];
-					double prevX = -spacing;
-					for (auto& [idx, node] : mp) {
-						double curX = widths[level] * idx;
-						if (curX - prevX < spacing)
-							return false;
-						prevX = curX;
+				auto IsOkay = [&](double testWidth) {
+					vector<double> widths;
+					widths.push_back(testWidth);
+					for (int level = this->grid.size() - 2; level >= 0; --level) {
+						widths.push_back(widths[widths.size() - 1] * 2);
 					}
-				}
-				return true;
-			};
+					reverse(widths.begin(), widths.end());
 
-			if (IsOkay(tmid)) {
-				// cout << "hei " << tmid << " OK" << endl;
-				rb = tmid;
-			}
-			else {
-				// cout << "hei " << tmid << " NOT OK" << endl;
-				lb = tmid;
+					for (int level = this->grid.size() - 1; level >= 0; --level) {
+						auto& mp = this->grid[level];
+						double prevX = -spacing;
+						for (auto& [idx, node] : mp) {
+							double curX = widths[level] * idx;
+							if (curX - prevX < spacing)
+								return false;
+							prevX = curX;
+						}
+					}
+					return true;
+				};
+
+				if (IsOkay(tmid)) {
+					// cout << "hei " << tmid << " OK" << endl;
+					rb = tmid;
+				}
+				else {
+					// cout << "hei " << tmid << " NOT OK" << endl;
+					lb = tmid;
+				}
 			}
 		}
-
+		
+#endif
 		//maxWidth /= (float)this->grid.size();
-		maxWidth = (rb + lb) * 0.5f;
+		maxWidth = rb;
 		cout << "Optimal width: " << (rb + lb) * 0.5 << endl;
 
 		auto& last = this->grid[this->grid.size() - 1];
@@ -360,6 +364,13 @@ public:
 		}
 	}
 
+	Vector2f GridToCoords(int x, int y) {
+		if (y < 0)
+			return Vector2f(FLT_MAX, FLT_MAX);
+		Vector2f coords = Vector2f(this->xes[y][x], y * (Node::GetNodeSize() * 2.8f * pow(1.05, this->grid.size())));
+		return coords;
+	}
+
 	void Draw(RenderWindow* window) {
 		if (this->hasChanges) {
 			this->RebuildGrid();
@@ -374,36 +385,7 @@ public:
 			auto& definition = this->grid[level];
 
 			for (auto& [xpos, node] : definition) {
-				static auto GetVals = [](PNode root, PNode target) -> std::tuple<double, double> {
-					double sum = 0, prevSum = 0;
-					double mult = 1;
-					PNode q = root;
-					while (q != target) {
-						prevSum = sum;
-						if (target->data < q->data) {
-							sum -= mult;
-							q = q->left;
-						}
-						else {
-							sum += mult;
-							q = q->right;
-						}
-						mult /= 2;
-					}
-					return { prevSum, sum };
-				};
-
-				static auto GridToCoords = [](double vl1, double vl2,  int x, int y) -> std::tuple<Vector2f, Vector2f> {
-					Vector2f nodeCoords = Vector2f(pow(2, x) * vl1 * Node::GetNodeSize(), y * (Node::GetNodeSize() * 2.8f));
-					Vector2f parentCoords = Vector2f(FLT_MAX, FLT_MAX);
-					if (y > 0)
-						parentCoords = Vector2f(pow(2, x) * vl2 * Node::GetNodeSize(), (y - 1) * (Node::GetNodeSize() * 2.8f));
-					return { nodeCoords, parentCoords };
-				};
-
-				auto [vl2, vl1] = GetVals(this->tree->GetRoot(), node);
-				auto [nodePos, parentPos] = GridToCoords(vl1, vl2, this->grid.size() - 1, level);
-				draw_node(nodePos, node, parentPos);
+				draw_node(GridToCoords(xpos, level), node, GridToCoords(xpos / 2, level - 1));
 			}
 		}
 	}
@@ -411,12 +393,6 @@ public:
 	PNode FindByPos(Vector2f world) {
 		for (int level = this->grid.size() - 1; level >= 0; --level) {
 			auto& definition = this->grid[level];
-			auto GridToCoords = [&](int x, int y) {
-				if (y < 0)
-					return Vector2f(FLT_MAX, FLT_MAX);
-				Vector2f coords = Vector2f(this->xes[y][x], y * (Node::GetNodeSize() * 2.8f));
-				return coords;
-			};
 
 			for (auto& [xpos, node] : definition) {
 				Vector2f ppos = GridToCoords(xpos, level);
@@ -463,10 +439,16 @@ public:
 		this->activeViewIndex = desiredView;
 		auto curView = this->treeViews[this->activeViewIndex];
 		curView->UpdateOperations(this->opHistory);
-		sf::View view = this->window->getView();
-		sf::Vector2f newPos = Vector2f(0, 0);
-		view.setCenter(newPos);
-		window->setView(view);
+		if (curView->hasChanges) {
+			curView->RebuildGrid();
+			curView->hasChanges = false;
+		}
+		if (curView->tree->GetRoot()) {
+			sf::View view = this->window->getView();
+			sf::Vector2f newPos = curView->GridToCoords(0, 0);
+			view.setCenter(newPos);
+			window->setView(view);
+		}
 	}
 
 	void Frame() {
@@ -530,7 +512,8 @@ public:
 				Stream str = Stream(this->insFieldText);
 				this->insFieldText = "";
 				int num = str.get_num(0, true, true);
-				this->InsertAll(num);
+				for(int i = 0; i < num; ++i)
+					this->InsertAll(rand() % 1000);
 			}
 			catch (...) {}
 		}
@@ -616,9 +599,9 @@ int main()
 				if (moving)
 					break;
 				if (event.mouseWheelScroll.delta <= -1)
-					zoom = zoom + 0.5f;
+					zoom = zoom * 1.05f;
 				else if (event.mouseWheelScroll.delta >= 1)
-					zoom = std::max(0.5f, zoom - 0.5f);
+					zoom = std::max(0.5f, zoom * 0.95f);
 				view.setSize(window.getDefaultView().getSize());
 				view.zoom(zoom);
 				window.setView(view);
@@ -634,6 +617,7 @@ int main()
 
 		window.display();
 		++g_FrameCount;
+		view = window.getView();
 	}
 	return 0;
 }

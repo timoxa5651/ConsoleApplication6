@@ -184,6 +184,9 @@ public:
 	virtual std::string TreeName() {
 		return "Splay";
 	}
+	virtual bool UsesAutoShrink() {
+		return true;
+	}
 
 	SplayTree() {
 		this->root = nullptr;

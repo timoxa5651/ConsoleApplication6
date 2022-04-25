@@ -93,6 +93,10 @@ public:
 	virtual bool Delete(const T& value) = 0;
 	virtual std::string TreeName() = 0;
 
+	virtual bool UsesAutoShrink() {
+		return false;
+	}
+
 	void InOrder(void(*call)(NodeType*, int)) {
 		return this->InOrderInternal(reinterpret_cast<void*>(call));
 	}
