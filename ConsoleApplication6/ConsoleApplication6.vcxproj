@@ -163,6 +163,7 @@
     <ClInclude Include="fmt\ranges.h" />
     <ClInclude Include="fmt\xchar.h" />
     <ClInclude Include="SplayTree.hpp" />
+    <ClInclude Include="TreapTree.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

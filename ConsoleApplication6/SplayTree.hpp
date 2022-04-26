@@ -208,7 +208,7 @@ public:
 	using Type = T;
 	using NodeType = Node;
 
-	virtual bool Insert(const T& value) final {
+	virtual bool Insert(const T& value) override {
 		bool result = false;
 		this->InsertInternal(value, &result);
 		return result;

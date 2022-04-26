@@ -74,5 +74,8 @@
     <ClInclude Include="SplayTree.hpp">
       <Filter>Исходные файлы\trees</Filter>
     </ClInclude>
+    <ClInclude Include="TreapTree.hpp">
+      <Filter>Исходные файлы\trees</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

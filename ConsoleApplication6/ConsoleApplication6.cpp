@@ -26,6 +26,7 @@ using sf::String;
 
 #include "AVLTree.hpp"
 #include "SplayTree.hpp"
+#include "TreapTree.hpp"
 
 class ReadExpection : exception {
 public:
@@ -421,6 +422,7 @@ public:
 		this->window = window;
 
 		this->treeViews.push_back(reinterpret_cast<decltype(treeViews)::value_type>(new TreeView<T, AVLTree<T>>()));
+		this->treeViews.push_back(reinterpret_cast<decltype(treeViews)::value_type>(new TreeView<T, TreapTree<T>>()));
 		this->treeViews.push_back(reinterpret_cast<decltype(treeViews)::value_type>(new TreeView<T, SplayTree<T>>()));
 		this->activeViewIndex = 0;
 	}
