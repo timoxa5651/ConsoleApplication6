@@ -1,5 +1,7 @@
 #pragma once
 #include "BaseTree.hpp"
+#include <tuple>
+using std::tuple;
 
 template<typename T>
 class SplayNode : public BaseNode<T, SplayNode<T>> {
@@ -9,21 +11,13 @@ class SplayNode : public BaseNode<T, SplayNode<T>> {
 		return 120.f;
 	}
 
-	void UpdateHeight() {
-		int lh = this->left ? this->left->height : 0;
-		int rh = this->right ? this->right->height : 0;
-		this->height = 1 + std::max(lh, rh);
-	}
 	SplayNode() {
-		this->left = this->right = this->parent = nullptr;
-		this->height = 1;
+		this->left = this->right = nullptr;
 	};
 	SplayNode(const T& val) : SplayNode() {
 		this->data = val;
 	}
 public:
-	int height;
-	SplayNode<T>* parent;
 };
 
 template<typename T>
@@ -31,122 +25,167 @@ class SplayTree : public BaseTree<T>
 {
 	typedef SplayNode<T> Node, * PNode;
 
-	void RotateLeft(PNode x) {
-		PNode y = x->right;
-		x->right = y->left;
-		if (y->left != nullptr) {
-			y->left->parent = x;
+	void Splay(PNode& node, const T& value, bool isRoot = true) {
+		if (node == nullptr) {
+			return;
 		}
-		y->parent = x->parent;
-		if (x->parent == nullptr) {
-			this->root = y;
-		}
-		else if (x == x->parent->left) {
-			x->parent->left = y;
-		}
-		else {
-			x->parent->right = y;
-		}
-		y->left = x;
-		x->parent = y;
-		x->UpdateHeight();
-		y->UpdateHeight();
-	}
-	void RotateRight(PNode x) {
-		PNode y = x->left;
-		x->left = y->right;
-		if (y->right != nullptr) {
-			y->right->parent = x;
-		}
-		y->parent = x->parent;
-		if (x->parent == nullptr) {
-			this->root = y;
-		}
-		else if (x == x->parent->right) {
-			x->parent->right = y;
-		}
-		else {
-			x->parent->left = y;
-		}
-		y->right = x;
-		x->parent = y;
-		x->UpdateHeight();
-		y->UpdateHeight();
-	}
 
-	void Splay(PNode x) {
-		while (x->parent) {
-			if (!x->parent->parent) {
-				if (x == x->parent->left) {
-					// zig
-					this->RotateRight(x->parent);
+		if (value < node->data) {
+			this->Splay(node->left, value, false);
+			if (node->left->data == value) {
+				if (isRoot) {
+					PNode q = node;
+					node = node->left;
+					q->left = node->right;
+					node->right = q;
 				}
-				else {
-					// zag
-					this->RotateLeft(x->parent);
-				}
-			}
-			else if (x == x->parent->left && x->parent == x->parent->parent->left) {
-				// zigzig
-				this->RotateRight(x->parent->parent);
-				this->RotateRight(x->parent);
-			}
-			else if (x == x->parent->right && x->parent == x->parent->parent->right) {
-				// zagzag
-				this->RotateLeft(x->parent->parent);
-				this->RotateLeft(x->parent);
-			}
-			else if (x == x->parent->right && x->parent == x->parent->parent->left) {
-				// zigzag
-				this->RotateLeft(x->parent);
-				this->RotateRight(x->parent);
 			}
 			else {
-				// zagzig
-				this->RotateRight(x->parent);
-				this->RotateLeft(x->parent);
+				PNode p, q;
+				if (value < node->left->data) {
+					q = node->left;
+					node->left = q->right;
+					q->right = node;
+					p = q->left;
+					q->left = p->right;
+					p->right = q;
+					node = p;
+				}
+				else if (value > node->left->data) {
+					q = node->left;
+					p = q->right;
+					q->right = p->left;
+					p->left = q;
+					node->left = p->right;
+					p->right = node;
+					node = p;
+				}
 			}
 		}
+		else if (value > node->data) {
+			this->Splay(node->right, value, false);
+			if (node->right->data == value) {
+				if (isRoot) {
+					PNode q = node;
+					node = node->right;
+					q->right = node->left;
+					node->left = q;
+				}
+			}
+			else {
+				PNode q, p;
+				if (value < node->right->data) {
+					q = node->right;
+					p = q->left;
+					q->left = p->right;
+					p->right = q;
+					node->right = p->left;
+					p->left = node;
+					node = p;
+				}
+				else if (value > node->right->data) {
+					q = node->right;
+					node->right = q->left;
+					q->left = node;
+					p = q->right;
+					q->right = p->left;
+					p->left = q;
+					node = p;
+				}
+			}
+		}
+	}
+
+	PNode Merge(PNode t1, PNode t2) {
+		if (!t1) return t2;
+		if (!t2) return t1;
+		PNode q = t1;
+		while (q->right != nullptr) q = q->right;
+		this->Splay(t1, q->data);
+		t1->right = t2;
+		return t1;
+	}
+
+	tuple<PNode, PNode, PNode> Split(PNode node, const T& value) {
+		if (!node)
+			return { nullptr, nullptr, nullptr };
+
+		T minElem = T{};
+		bool minElemInit = false;
+		PNode q = node;
+		while (q != nullptr) {
+			if (q->data >= value) {
+				if (!minElemInit) {
+					minElem = q->data;
+				}
+				minElem = std::min(minElem, q->data);
+				minElemInit = true;
+			}
+			if (value > q->data) {
+				q = q->right;
+			}
+			else if (value < q->data) {
+				q = q->left;
+			}
+		}
+		if (!minElemInit) {
+			return { node, nullptr, nullptr };
+		}
+		this->Splay(node, minElem);
+		if (node->data != value) {
+			PNode left = node->left;
+			node->left = nullptr;
+			return { left, nullptr, node };
+		}
+		PNode left = node->left;
+		PNode right = node->right;
+		node->left = node->right = nullptr;
+		return { left, node, right };
+	}
+
+	bool Exists(const T& value) {
+		PNode q = this->root;
+		while (q != nullptr) {
+			if (value > q->data) {
+				q = q->right;
+			}
+			else if (value < q->data) {
+				q = q->left;
+			}
+			else {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	void InsertInternal(const T& value, bool* result) {
-		PNode node = new Node(value);
-		PNode x = this->root;
-		PNode y = nullptr;
-		while (x) {
-			y = x;
-			if (node->data < x->data) {
-				x = x->left;
-			}
-			else {
-				x = x->right;
-			}
-		}
-
-		if (y == nullptr) {
-			this->root = node;
-		}
-		else if (node->data == y->data) {
-			delete node;
+		if (this->Exists(value)) {
+			*result = false;
 			return;
 		}
-		else if (node->data < y->data) {
-			y->left = node;
-		}
-		else {
-			y->right = node;
-		}
-		node->parent = y;
+			
+		auto [low, mid, high] = this->Split(this->root, value);
 
-		node->UpdateHeight();
-		if(y)
-			y->UpdateHeight();
-		this->Splay(node);
+		PNode q = new Node(value);
+		q->left = low;
+		q->right = high;
+		this->root = q;
 		*result = true;
 	}
 
 	void DeleteInternal(PNode head, const T& x, bool* result) {
-		
+		if (!this->root)
+			return;
+		this->Splay(this->root, x);
+		if (this->root->data != x) {
+			return;
+		}
+		PNode left = this->root->left;
+		PNode right = this->root->right;
+		this->root->left = this->root->right = nullptr;
+		delete this->root;
+		this->root = this->Merge(left, right);
 	}
 
 	template<typename F>
