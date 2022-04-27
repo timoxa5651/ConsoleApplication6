@@ -460,6 +460,8 @@ public:
 		Vector2f asd = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 70, dtv2.y));
 		Vector2f dtv = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x, dtv2.y));
 		Vector2f end = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x + 150, dtv2.y + 30));
+		Vector2f asd2 = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 70, dtv2.y + 50));
+		Vector2f asd3 = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 70, dtv2.y + 80));
 
 		sf::RectangleShape rect(end - dtv);
 		rect.setPosition(dtv);
@@ -481,6 +483,21 @@ public:
 		text2.setCharacterSize(16);
 		text2.setString(String("Insert N"));
 		text2.setPosition(asd);
+		this->window->draw(text2);
+
+		text.setFont(g_Font);
+		text.setScale(Vector2f(this->windowZoomInternal, this->windowZoomInternal));
+		text.setCharacterSize(16);
+		text.setFillColor(Color(0, 0, 0, 255));
+		text.setString(this->insFieldText);
+		text.setPosition(asd3);
+		this->window->draw(text);
+
+		text2.setFont(g_Font);
+		text2.setScale(Vector2f(this->windowZoomInternal, this->windowZoomInternal));
+		text2.setCharacterSize(16);
+		text2.setString(String("Insert 1"));
+		text2.setPosition(asd2);
 		this->window->draw(text2);
 
 		for (int i = 0; i < this->treeViews.size(); ++i) {
