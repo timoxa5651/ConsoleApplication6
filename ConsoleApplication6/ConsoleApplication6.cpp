@@ -8,6 +8,7 @@
 #include <chrono>
 #include <any>
 #include <unordered_set>
+#include <stack>
 
 using namespace std;
 using namespace sf;
@@ -184,21 +185,23 @@ enum class OpType {
 class Opdef {
 public:
 	bool isFunction;
+	OpType type;
 	string repr;
 	double(*eval)(struct OpNode*);
 	int priority;
 
 	template<typename F>
-	Opdef(string repr, F&& call, bool isf, int pr = 0) {
+	Opdef(OpType type, string repr, F&& call, bool isf, int pr = 0) {
 		this->repr = repr;
 		this->eval = call;
+		this->type = type;
 		this->isFunction = isf;
 	}
 };
 static map<OpType, Opdef*> g_opcodes;
 
-#define REG_OPCODE(name, repr, pr, fun) g_opcodes[OpType::name] = new Opdef(repr, fun, pr, false);
-#define REG_FUNC(name, repr, fun) g_opcodes[OpType::name] = new Opdef(repr, fun, true);
+#define REG_OPCODE(name, repr, pr, fun) g_opcodes[OpType::name] = new Opdef(OpType::name, repr, fun, pr, false);
+#define REG_FUNC(name, repr, fun) g_opcodes[OpType::name] = new Opdef(OpType::name, repr, fun, true);
 
 typedef struct OpNode {
 	OpNode* left, *right;
@@ -220,14 +223,53 @@ Opdef* FindOpdef(string str) {
 }
 
 PNode ExprParse(Stream stream) {
-	stream.read_while(' ');
-	
+	vector<PNode> nodes;
+
+	std::stack<pair<string, Opdef*>> funcs;
 	while (stream.get_cur() < stream.get_size()) {
+		stream.read_while(' ');
+
 		try {
 			double num = stream.get_num(stream.get_cur(), true, true, true);
-
+			PNode node = new Node();
+			node->type = OpType::ConstNumber;
+			node->arg = num;
+			nodes.emplace_back(node);
+			continue;
 		}
 		catch (ReadExpection& ex) {}
+
+		if (stream.peek_char() == '(') {
+			funcs.push(make_pair("(", nullptr));
+			continue;
+		}
+		else if (stream.peek_char() == ')') {
+			vector<PNode> args;
+			while (funcs.size()) {
+				auto [r, fun] = funcs.top();
+				if (r == '(') {
+					funcs.pop();
+					break;
+				}
+				args.emplace_back(fun);
+				funcs.pop();
+			}
+
+			if (funcs.size() && funcs.top().second && funcs.top().second->isFunction) {
+				auto func = funcs.top().second;
+				PNode node = new Node();
+				node->type = func->type;
+				node->left = args[0];
+				nodes.push_back(node);
+
+				funcs.pop();
+			}
+			else {
+
+			}
+
+			continue;
+		}
 
 		string cstream = stream.str.substring(stream.get_cur());
 		Opdef* def = FindOpdef(cstream);
@@ -235,7 +277,19 @@ PNode ExprParse(Stream stream) {
 			throw ReadExpection(stream.get_cur(), "No operand");
 		}
 
-		PNode node = new Node();
+		if (def->isFunction) {
+			funcs.push(make_pair(def->repr, def));
+		}
+		else {
+			while (funcs.size()) {
+				auto [r, fun] = funcs.top();
+				if (!fun || fun->priority <= def->priority)
+					break;
+				nodes.emplace_back(fun);
+				funcs.pop();
+			}
+			funcs.push(make_pair(def->repr, def));
+		}
 	}
 	
 
