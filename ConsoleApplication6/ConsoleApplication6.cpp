@@ -32,8 +32,6 @@ public:
 		return this->fmsg.c_str();
 	}
 };
-
-
 class Stream {
 	int off;
 public:
@@ -79,6 +77,18 @@ public:
 			}
 		}
 		throw ReadExpection(this->off, errmsg);
+	}
+
+	void read_while(char chr) {
+		while (this->str[this->off] == chr) {
+			this->off += 1;
+		}
+	}
+	wchar_t read_char() {
+		return this->str[this->off++];
+	}
+	wchar_t peek_char() {
+		return this->str[this->off];
 	}
 
 	String get_closing_block(int st, char add, char term, int cnt = 1) {
@@ -133,7 +143,16 @@ public:
 		return rstr;
 	}
 
-	int get_num(int st, bool read) {
+	int get_num(int st, bool read, bool negat = false, bool db = false) {
+		bool ng = this->str[st] == '-';
+		if (!negat && ng)
+			throw ReadExpection(this->off, "Only positive numbers are allowed");
+		if (ng) {
+			st += 1;
+			if (read)
+				this->off += 1;
+		}
+
 		int rd = 0, rs = 0;
 		for (int i = st; i < this->str.getSize(); ++i) {
 			if (this->str[i] >= '0' && this->str[i] <= '9') {
@@ -152,444 +171,80 @@ public:
 				this->off += 1;
 			}
 		}
-		return rs;
+		return rs * (ng ? -1 : 1);
 	}
 };
 
-enum class Parser_op {
-	And,
-	Or
+
+enum class OpType {
+	ConstNumber,
+	DynNumber,
+	Plus
 };
-enum class Parser_val {
-	True,
-	False,
-	Not,
-	Expr
-};
-
-class Parser1 {
-	Stream stream;
-	bool debug;
-
-	Parser_op next_opcode(bool read);
-	Parser_val next_opval(bool read);
-	vector<pair<Parser_val, int>> next_opvals(bool read);
-
-	int next_expr(int cur, bool read);
-	int val_to_value(Parser_val opval, bool read);
-
+class Opdef {
 public:
-	Parser1(String str) {
-		this->stream = Stream(str);
-		this->debug = false;
-	}
-	Parser1(Stream str) {
-		this->stream = str;
-		this->debug = false;
-	}
+	bool isFunction;
+	string repr;
+	double(*eval)(struct OpNode*);
+	int priority;
 
-	void set_debug(bool s) {
-		this->debug = s;
-	}
-	int parse() {
-		int res = this->next_expr(0, true);
-		if (this->stream.get_cur() < this->stream.get_size()) {
-			throw ReadExpection(this->stream.get_cur(), "Unexpected end");
-		}
-		return res;
+	template<typename F>
+	Opdef(string repr, F&& call, bool isf, int pr = 0) {
+		this->repr = repr;
+		this->eval = call;
+		this->isFunction = isf;
 	}
 };
+static map<OpType, Opdef*> g_opcodes;
 
-int Parser1::val_to_value(Parser_val opval, bool read) {
-	switch (opval) {
-	case Parser_val::True:
-		this->stream.read_expect({ "true" }, "Expected true");
-		return 1;
-	case Parser_val::False:
-		this->stream.read_expect({ "false" }, "Expected false");
-		return 0;
-	case Parser_val::Not:
-		if (read) {
-			this->stream.read_expect({ "not ", "not" }, "Expected not[space]");
-		}
-		else {
-			this->stream.peek_expect({ "not ", "not" }, "Expected not[space]");
-		}
-		return !val_to_value(this->next_opval(false), read);
-	case Parser_val::Expr:
-		if (read) {
-			this->stream.read_expect({ "(" }, "Expected (");
-		}
-		else {
-			this->stream.peek_expect({ "(" }, "Expected (");
-		}
-		String block = this->stream.get_closing_block(this->stream.get_cur() + !read, '(', ')');
-		block = block.substring(0, block.getSize() - 1);
-		if (this->debug) {
-			cout << "expr parse: " << block.toAnsiString() << endl;
-		}
+#define REG_OPCODE(name, repr, pr, fun) g_opcodes[OpType::name] = new Opdef(repr, fun, pr, false);
+#define REG_FUNC(name, repr, fun) g_opcodes[OpType::name] = new Opdef(repr, fun, true);
+
+typedef struct OpNode {
+	OpNode* left, *right;
+	OpType type;
+	double arg;
+
+	OpNode() {
+		this->left = this->right = nullptr;
+	}
+} Node, *PNode;
+
+Opdef* FindOpdef(string str) {
+	for (auto& [type, def] : g_opcodes) {
+		string& dd = def->repr;
+		if (str.starts_with(dd))
+			return def;
+	}
+	return nullptr;
+}
+
+PNode ExprParse(Stream stream) {
+	stream.read_while(' ');
+	
+	while (stream.get_cur() < stream.get_size()) {
 		try {
-			int ret = Parser1(block).parse();
-			if (read) {
-				this->stream.set_cur(this->stream.get_cur() + block.getSize());
-				this->stream.read_expect({ ")" }, "Expected )");
-			}
-			else {
-				int cprev = this->stream.get_cur();
-				this->stream.set_cur(this->stream.get_cur() + block.getSize());
+			double num = stream.get_num(stream.get_cur(), true, true, true);
 
-				this->stream.peek_expect({ ")" }, "Expected )");
+		}
+		catch (ReadExpection& ex) {}
 
-				this->stream.set_cur(cprev);
-			}
-			return ret;
+		string cstream = stream.str.substring(stream.get_cur());
+		Opdef* def = FindOpdef(cstream);
+		if (!def) {
+			throw ReadExpection(stream.get_cur(), "No operand");
 		}
-		catch (ReadExpection& ex) {
-			throw ReadExpection(this->stream.get_cur() + ex.position, ex.msg);
-		}
+
+		PNode node = new Node();
 	}
+	
+
+	return nullptr;
 }
 
-Parser_op Parser1::next_opcode(bool read) {
-	int vl;
-	if (read) {
-		vl = stream.read_expect({ "and ", "or ", "and", "or" }, "Expected and|or");
-	}
-	else {
-		vl = stream.peek_expect({ "and ", "or ", "and", "or" }, "Expected and|or");
-	}
-
-	if (vl == 0 || vl == 2) {
-		return Parser_op::And;
-	}
-	else {
-		return Parser_op::Or;
-	}
+double EvalNode(PNode pnode) {
+	return g_opcodes[pnode->type]->eval(pnode);
 }
-
-Parser_val Parser1::next_opval(bool read) {
-	int vl;
-	if (read) {
-		vl = stream.read_expect({ "true", "false", "not", "(" }, "Expected true/false/not/()");
-	}
-	else {
-		vl = stream.peek_expect({ "true", "false", "not", "(" }, "Expected true/false/not/()");
-	}
-
-	if (vl == 0) {
-		return Parser_val::True;
-	}
-	else if (vl == 1) {
-		return Parser_val::False;
-	}
-	else if (vl == 2) {
-		return Parser_val::Not;
-	}
-	else if (vl == 3) {
-		String block = this->stream.get_closing_block(this->stream.get_cur() + (read ? 0 : 1), '(', ')');
-		block = block.substring(0, block.getSize() - 1);
-		if (this->debug) {
-			cout << "expr: " << block.toAnsiString() << endl;
-		}
-		try {
-			int val = Parser1(block).parse();
-			if (read) {
-				this->stream.set_cur(this->stream.get_cur() + block.getSize());
-			}
-		}
-		catch (ReadExpection& ex) {
-			throw ReadExpection(this->stream.get_cur() + ex.position, ex.msg);
-		}
-
-		return Parser_val::Expr;
-	}
-}
-
-vector<pair<Parser_val, int>> Parser1::next_opvals(bool read) {
-	if (read) {
-		stream.read_expect({ "(" }, "Expected (");
-		int start = this->stream.get_cur();
-
-		vector<pair<Parser_val, int>> vec;
-		int tlength = 0;
-		while (true) {
-			int v = 0;
-			Parser_val vl = this->next_opval(false);
-			int dcur = this->stream.get_cur();
-			String block;
-			if (vl == Parser_val::False) {
-				block = this->stream.str.substring(this->stream.get_cur(), 5);
-			}
-			else if (vl == Parser_val::True) {
-				block = this->stream.str.substring(this->stream.get_cur(), 4);
-			}
-			else if (vl == Parser_val::Not) {
-				int jk = stream.read_expect({ "not ", "not" }, "Expected not");
-				tlength += (jk ? 3 : 4);
-				continue;
-			}
-			else if (vl == Parser_val::Expr) {
-				block = this->stream.get_closing_block(this->stream.get_cur(), '(', ')', 0);
-			}
-			if (this->debug) {
-				cout << block.toAnsiString() << endl;
-			}
-
-			try {
-				Parser_val vl2 = Parser1(block).next_opval(true);
-				vec.push_back({ tlength ? Parser_val::Not : vl2, block.getSize() + tlength });
-				tlength = 0;
-			}
-			catch (ReadExpection& ex) {
-				throw ReadExpection(this->stream.get_cur() + ex.position, ex.msg);
-			}
-
-			try {
-				this->stream.set_cur(dcur + block.getSize());
-				int k = stream.read_expect({ ",", ")" }, "Expected , or )");
-				if (k == 1) {
-					break;
-				}
-			}
-			catch (ReadExpection& ex) {
-				throw ReadExpection(this->stream.get_cur() - block.getSize() + ex.position, ex.msg);
-			}
-		}
-		return vec;
-	}
-	else {
-		stream.peek_expect({ "(" }, "Expected (");
-
-		Stream stream2 = '(' + this->stream.get_closing_block(this->stream.get_cur() + 1, '(', ')');
-		if (this->debug) {
-			cout << stream2.str.toAnsiString() << endl;
-		}
-		try {
-			return Parser1(stream2).next_opvals(true);
-		}
-		catch (ReadExpection& ex) {
-			throw ReadExpection(this->stream.get_cur() + ex.position, ex.msg);
-		}
-	}
-}
-
-int Parser1::next_expr(int cur, bool read) {
-	//this->debug = true;
-
-	try {
-		// операнд
-		Parser_val opval = this->next_opval(false);
-		return this->val_to_value(opval, read);
-	}
-	catch (ReadExpection& ex) {
-		// операция(операнд,операнд)
-		Parser_op oper = this->next_opcode(false);
-		if (this->next_opcode(true) != oper) {
-			throw 0;
-		}
-
-		vector<pair<Parser_val, int>> vals = this->next_opvals(false);
-		if (vals.size() < 2) {
-			if (vals.size() < 1) {
-				throw ReadExpection(this->stream.get_cur(), "Less than 2 operands");
-			}
-			else {
-				throw ReadExpection(this->stream.get_cur() + vals[0].second, "Less than 2 operands");
-			}
-		}
-
-		if (read) {
-			stream.read_expect({ "(" }, "Expected (");
-		}
-		else {
-			stream.peek_expect({ "(" }, "Expected (");
-		}
-
-		int ppos = this->stream.get_cur();
-		vector<int> values(vals.size());
-		for (int i = 0; i < vals.size(); ++i) {
-			this->stream.set_cur(ppos);
-			values[i] = this->val_to_value(vals[i].first, read);
-			ppos += vals[i].second + 1;
-		}
-
-		if (!read) {
-			this->stream.set_cur(ppos);
-		}
-
-		if (read) {
-			stream.read_expect({ ")" }, "Expected )");
-		}
-		else {
-			stream.peek_expect({ ")" }, "Expected )");
-		}
-
-		int flag = 0;
-		switch (oper) {
-		case Parser_op::And:
-			flag = values[0] & values[1];
-			for (int i = 2; i < values.size(); ++i) {
-				flag &= values[i];
-			}
-			return flag;
-		case Parser_op::Or:
-			flag = values[0] | values[1];
-			for (int i = 2; i < values.size(); ++i) {
-				flag |= values[i];
-			}
-			return flag;
-		}
-		throw 0;
-	}
-	throw 0;
-}
-
-enum class Parser2_sign {
-	Plus,
-	Minus
-};
-class Parser2 {
-	Stream stream;
-	bool debug;
-
-	int next_sum(bool read);
-	int next_term(bool read);
-	Parser2_sign next_sign(bool read);
-	int next_num(bool read);
-	int eval_sign(int left, int right, Parser2_sign sign);
-
-public:
-	Parser2(String str) {
-		this->stream = Stream(str);
-		this->debug = false;
-	}
-	Parser2(Stream str) {
-		this->stream = str;
-		this->debug = false;
-	}
-
-	void set_debug(bool s) {
-		this->debug = s;
-	}
-
-	int parse() {
-		int res = this->next_sum(true);
-
-		if (this->stream.get_cur() < this->stream.get_size()) {
-			String next_str = to_string(res) + this->stream.str.substring(this->stream.get_cur());
-			int pos_shift = this->stream.get_size() - next_str.getSize();
-			try {
-				Parser2 ps = Parser2(next_str);
-				ps.set_debug(this->debug);
-				return ps.parse();
-			}
-			catch (ReadExpection& ex) {
-				throw ReadExpection(this->stream.get_cur() - pos_shift + ex.position, ex.msg);
-			}
-		}
-		return res;
-	}
-};
-
-Parser2_sign Parser2::next_sign(bool read) {
-	int vl;
-	if (read) {
-		vl = stream.read_expect({ "+", "-" }, "Expected +|-");
-	}
-	else {
-		vl = stream.peek_expect({ "+", "-" }, "Expected +|-");
-	}
-
-	if (vl == 0) {
-		return Parser2_sign::Plus;
-	}
-	else {
-		return Parser2_sign::Minus;
-	}
-}
-
-int Parser2::next_num(bool read) {
-	return this->stream.get_num(this->stream.get_cur(), read);
-}
-
-int Parser2::next_term(bool read) {
-	try {
-		stream.peek_expect({ "(" }, "Expected (");
-	}
-	catch (ReadExpection& ex) {
-		return this->next_num(read);
-	}
-
-	if (read) {
-		stream.read_expect({ "(" }, "Expected (");
-	}
-	String block = this->stream.get_closing_block(this->stream.get_cur() + !read, '(', ')');
-	if (block.getSize() < 1 || block[block.getSize() - 1] != ')') {
-		throw ReadExpection(this->stream.get_cur() + block.getSize(), "Expected )");
-	}
-	block = block.substring(0, block.getSize() - 1);
-
-	if (read) {
-		this->stream.seek(block.getSize() + 1);
-	}
-
-	try {
-		Parser2 ps = Parser2(block);
-		ps.set_debug(this->debug);
-		int right = ps.parse();
-		return right;
-	}
-	catch (ReadExpection& ex) {
-		throw ReadExpection(this->stream.get_cur() - block.getSize() - 1 + ex.position, ex.msg);
-	}
-}
-
-int Parser2::eval_sign(int left, int right, Parser2_sign sign) {
-	switch (sign) {
-	case Parser2_sign::Plus:
-		return left + right;
-	case Parser2_sign::Minus:
-		return left - right;
-	}
-	throw 0;
-}
-
-int Parser2::next_sum(bool read) {
-	if (this->debug) {
-		cout << "next_sum " << this->stream.str.toAnsiString() << endl;
-	}
-	bool neg = false;
-	try {
-		stream.read_expect({ "-" });
-		neg = true;
-	}
-	catch (ReadExpection& ex) {
-
-	}
-
-	int term = this->next_term(read);
-	if (neg) {
-		term = -term;
-	}
-
-	try {
-		this->next_sign(false); // probe read sign
-	}
-	catch (ReadExpection& ex) {
-		if (!this->stream.is_end()) {
-			throw ReadExpection(this->stream.get_cur(), "Unexpected symbol");
-		}
-		return term;
-	}
-
-	Parser2_sign sig = this->next_sign(true);
-	int right = this->next_term(read);
-	if (this->debug) {
-		cout << "sign " << (int)sig << " left " << term << " right " << right << endl;
-	}
-	return this->eval_sign(term, right, sig);
-}
-
 
 class WndClass {
 	RenderWindow* wnd;
@@ -655,38 +310,14 @@ public:
 		ReadExpection expection = ReadExpection(0, "");
 		bool isErrored = false;
 		if (!this->button_state) {
-			Parser1 parser(this->current_text);
-			try {
-				int rs = parser.parse();
-				text.setString("OK (" + to_string(rs) + ")");
-				//cout << "ans: " << rs << endl;
-			}
-			catch (ReadExpection& ex) {
-				//cout << "err: " << ex.what() << endl;
-				text.setString(ex.what());
-				expection = ex;
-				expection.position = min(expection.position, (int)this->current_text.getSize());
-				isErrored = true;
-			}
-			catch (...) {
-				text.setString("Fail: Generic");
-			}
+			
+			text.setString("Fail: Generic");
+			
 		}
 		else {
-			Parser2 parser(this->current_text);
-			try {
-				int rs = parser.parse();
-				text.setString("OK (" + to_string(rs) + ")");
-			}
-			catch (ReadExpection& ex) {
-				text.setString(ex.what());
-				expection = ex;
-				expection.position = min(expection.position, (int)this->current_text.getSize());
-				isErrored = true;
-			}
-			catch (...) {
-				text.setString("Fail: Generic");
-			}
+
+			text.setString("Fail: Generic");
+			
 		}
 		this->wnd->draw(text);
 
@@ -748,13 +379,21 @@ public:
 
 int main()
 {
+	REG_OPCODE(ConstNumber, "", 0, [](PNode node) -> double {
+		return node->arg;
+	})
+	REG_OPCODE(DynNumber, "x", 0, [](PNode node) -> double {
+		return node->arg;
+	})
+	REG_OPCODE(Plus, "+", 0, [](PNode node) -> double {
+		return EvalNode(node->left) + EvalNode(node->right);
+	})
+
 	String tests[] = {
-		String("and((or(false,not true,(false),(or(false,true)))),(or(false,not true,(false),(and(not false,true)))))"), // 1
-		String("((((false))))"), // 0
-		String("not (or (false,(not (not (((true)))))))"), // 0
-		String("and(true,(or(false,not true)),not not true)") // 1
+		String("x + 1"), // 1
+		
 	};
-	int num = 1;
+	/*int num = 1;
 	for (String s : tests) {
 		Parser1 parser(s);
 		try {
@@ -768,7 +407,7 @@ int main()
 			cout << "Test " << num << ": Fail (Generic)" << endl;
 		}
 		++num;
-	}
+	}*/
 
 	/*String tests[] = {
 		String("555+(0-(0-6))+(((0-6666)))+6106"), // 1
