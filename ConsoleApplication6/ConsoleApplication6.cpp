@@ -198,7 +198,10 @@ enum class OpType {
 	Pow,
 
 	Cos,
-	Sin
+	Sin,
+	Log,
+	Exp,
+	Sqrt
 };
 class Opdef {
 public:
@@ -628,9 +631,12 @@ int main()
 		return EvalNode(node->left) * EvalNode(node->right);
 	});
 	REG_OPCODE(Divide, "/", 2, [](PNode node) -> double {
-		return EvalNode(node->left) / EvalNode(node->right);
+		double db = EvalNode(node->right);
+		//if (abs(db) <= 1e-8)
+		//	return 0.0;
+		return EvalNode(node->left) / db;
 	});
-	REG_OPCODE(Pow, "^", 3, [](PNode node) -> double {
+	REG_OPCODE(Pow, "^", 2, [](PNode node) -> double {
 		return pow(EvalNode(node->left), EvalNode(node->right));
 	});
 	REG_FUNC(Cos, "cos", [](PNode node) -> double {
@@ -638,6 +644,15 @@ int main()
 	});
 	REG_FUNC(Sin, "sin", [](PNode node) -> double {
 		return sin(EvalNode(node->right));
+	});
+	REG_FUNC(Log, "log", [](PNode node) -> double {
+		return log(EvalNode(node->right));
+	});
+	REG_FUNC(Exp, "exp", [](PNode node) -> double {
+		return exp(EvalNode(node->right));
+	});
+	REG_FUNC(Sqrt, "sqrt", [](PNode node) -> double {
+		return sqrt(EvalNode(node->right));
 	});
 
 	String tests[] = {
