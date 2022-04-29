@@ -413,6 +413,8 @@ class TreeDrawer {
 	int activeViewIndex;
 	RenderWindow* window;
 	String insFieldText;
+	String insFieldText2;
+	bool curFieldFs;
 
 public:
 	float windowZoomInternal;
@@ -460,8 +462,11 @@ public:
 		Vector2f asd = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 70, dtv2.y));
 		Vector2f dtv = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x, dtv2.y));
 		Vector2f end = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x + 150, dtv2.y + 30));
-		Vector2f asd2 = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 70, dtv2.y + 50));
-		Vector2f asd3 = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 70, dtv2.y + 80));
+		Vector2f asd2 = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 70, dtv2.y + 60));
+		Vector2f asd3 = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x - 0, dtv2.y + 60));
+
+		Vector2f dtv3 = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x, dtv2.y + 60));
+		Vector2f end3 = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x + 150, dtv2.y + 90));
 
 		sf::RectangleShape rect(end - dtv);
 		rect.setPosition(dtv);
@@ -490,7 +495,7 @@ public:
 		text.setCharacterSize(16);
 		text.setFillColor(Color(0, 0, 0, 255));
 		text.setString(this->insFieldText);
-		text.setPosition(asd3);
+		text.setPosition(end);
 		this->window->draw(text);
 
 		text2.setFont(g_Font);
@@ -499,6 +504,19 @@ public:
 		text2.setString(String("Insert 1"));
 		text2.setPosition(asd2);
 		this->window->draw(text2);
+
+		sf::RectangleShape rect2(end3 - dtv3);
+		rect2.setPosition(dtv3);
+		rect2.setFillColor(Color(255, 255, 255, 255));
+		this->window->draw(rect2);
+
+		text.setFont(g_Font);
+		text.setScale(Vector2f(this->windowZoomInternal, this->windowZoomInternal));
+		text.setCharacterSize(16);
+		text.setFillColor(Color(0, 0, 0, 255));
+		text.setString(this->insFieldText2);
+		text.setPosition(asd3);
+		this->window->draw(text);
 
 		for (int i = 0; i < this->treeViews.size(); ++i) {
 			constexpr int wid = 80;
@@ -526,26 +544,45 @@ public:
 	}
 
 	void text_entered(Event evnt) {
+		sf::String* curStrPtr = &this->insFieldText;
+		if (this->curFieldFs)
+			curStrPtr = &this->insFieldText2;
+		sf::String& curStr = *curStrPtr;
 		if (evnt.text.unicode == 13) {
 			try {
-				Stream str = Stream(this->insFieldText);
-				this->insFieldText = "";
+				Stream str = Stream(curStr);
+				curStr = "";
 				int num = str.get_num(0, true, true);
-				for(int i = 0; i < num; ++i)
-					this->InsertAll(rand() % 1000);
+				if (!this->curFieldFs) {
+					for (int i = 0; i < num; ++i)
+						this->InsertAll(rand() % 1000);
+				}
+				else {
+					this->InsertAll(num);
+				}
 			}
 			catch (...) {}
 		}
 		else if (evnt.text.unicode == 8) { //backspace
-			if (this->insFieldText.getSize())
-				this->insFieldText = this->insFieldText.substring(0, this->insFieldText.getSize() - 1);
+			if (curStr.getSize())
+				curStr = curStr.substring(0, curStr.getSize() - 1);
 		}
 		else {
-			this->insFieldText += evnt.text.unicode;
+			curStr += evnt.text.unicode;
 		}
 	}
 
 	void OnClicked(Vector2f world) {
+		Vector2f dtv2 = Vector2f(this->window->getSize().x - 150, 10);
+		Vector2f dtv = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x, dtv2.y));
+		Vector2f end = this->window->mapPixelToCoords(sf::Vector2i(dtv2.x + 150, dtv2.y + 30));
+		if (sf::Rect<float>(dtv.x, dtv.y, end.x - dtv.x, end.y - dtv.y).contains(world)) {
+			this->curFieldFs = false;
+		}
+		else {
+			this->curFieldFs = true;
+		}
+
 		for (int i = 0; i < this->treeViews.size(); ++i) {
 			constexpr int wid = 80;
 
