@@ -341,7 +341,7 @@ PNode ExprParse(Stream stream) {
 
 	while (funcs.size()) {
 		auto [r, fun] = funcs.top();
-		if(!fun)
+		if (!fun)
 			throw ReadExpection(stream.get_cur(), "strike");
 		PNode node = new Node(fun->type);
 		nodes.push_back(node);
@@ -445,6 +445,15 @@ public:
 			wnd->draw(vertices, 2, Lines);
 		}
 
+		Vertex vertices[2];
+		vertices[0] = Vertex(plt_to_wnd(Vector2f(-1e6, 0)));
+		vertices[1] = Vertex(plt_to_wnd(Vector2f(1e6, 0)));
+		vertices[0].color = vertices[1].color = Color(255, 255, 255, 255);
+		wnd->draw(vertices, 2, Lines);
+		vertices[0] = Vertex(plt_to_wnd(Vector2f(0, -1e6)));
+		vertices[1] = Vertex(plt_to_wnd(Vector2f(0, 1e6)));
+		wnd->draw(vertices, 2, Lines);
+
 		//y axis
 		xStart = wnd_to_plot(Vector2f(0, 0)).y;
 		xEnd = wnd_to_plot(Vector2f(0, this->size)).y;
@@ -490,25 +499,31 @@ public:
 	}
 
 	void render() {
-		double outline_color[] = { 1.f,1.f,1.f,1.f };
+		sf::Color clrs[3] = { sf::Color::Red, sf::Color::Blue, sf::Color::Cyan };
+
 		//outline
 		vector<Vertex> vt_buffer;
 		vt_buffer.reserve(this->wnd->getSize().x);
+		int i = 0;
 		for (Input* sh : this->inputs) {
 			if (!sh->rootNode)
 				continue;
+			sf::Color outline_color = clrs[i++ % (sizeof(clrs) / sizeof(clrs[0]))];
 			for (int x = 0; x <= this->wnd->getSize().x; ++x) {
 				double px = wnd_to_plot(Vector2f(x, 0)).x;
 				// for x 
 				g_GetDynVariable = px;
 				double solution = EvalNode(sh->rootNode);
+				
 				Vector2f spos = plt_to_wnd(Vector2f(px, solution));
 
-				//if (spos.x >= 0 && spos.x < pl->size && spos.y >= 0 && spos.y < pl->size) {
-				Vertex vertex;
-				vertex.position = Vector2f(spos.x, spos.y);
-				vertex.color = Color(outline_color[0] * 255.f, outline_color[1] * 255.f, outline_color[2] * 255.f, outline_color[3] * 255.f);
-				vt_buffer.push_back(vertex);
+				//Vector2f prevVertex = vt_buffer.size() ? vt_buffer[vt_buffer.size() - 1].position : Vector2f(0, 0);
+
+				//if (!(prevVertex.y > this->size && spos.y < 0) && !(prevV5ertex.y < 0 && spos.y > this->size)) {
+					Vertex vertex;
+					vertex.position = Vector2f(spos.x, spos.y);
+					vertex.color = Color(outline_color.r, outline_color.g, outline_color.b, outline_color.a);
+					vt_buffer.push_back(vertex);
 				//}
 
 			}
@@ -617,43 +632,42 @@ int main()
 {
 	REG_OPCODE(ConstNumber, "", 0, [](PNode node) -> double {
 		return node->arg;
-	});
+		});
 	REG_OPCODE(DynNumber, "x", 0, [](PNode node) -> double {
 		return g_GetDynVariable;
-	});
+		});
 	REG_OPCODE(Plus, "+", 1, [](PNode node) -> double {
 		return EvalNode(node->left) + EvalNode(node->right);
-	});
+		});
 	REG_OPCODE(Minus, "-", 1, [](PNode node) -> double {
 		return EvalNode(node->left) - EvalNode(node->right);
-	});
+		});
 	REG_OPCODE(Multiply, "*", 2, [](PNode node) -> double {
 		return EvalNode(node->left) * EvalNode(node->right);
-	});
+		});
 	REG_OPCODE(Divide, "/", 2, [](PNode node) -> double {
-		double db = EvalNode(node->right);
-		//if (abs(db) <= 1e-8)
-		//	return 0.0;
-		return EvalNode(node->left) / db;
-	});
+		if (abs(EvalNode(node->right)) <= 1e-6)
+			return INFINITY;
+		return EvalNode(node->left) / EvalNode(node->right);
+		});
 	REG_OPCODE(Pow, "^", 2, [](PNode node) -> double {
 		return pow(EvalNode(node->left), EvalNode(node->right));
-	});
+		});
 	REG_FUNC(Cos, "cos", [](PNode node) -> double {
 		return cos(EvalNode(node->right));
-	});
+		});
 	REG_FUNC(Sin, "sin", [](PNode node) -> double {
 		return sin(EvalNode(node->right));
-	});
-	REG_FUNC(Log, "log", [](PNode node) -> double {
+		});
+	REG_FUNC(Log, "lg", [](PNode node) -> double {
 		return log(EvalNode(node->right));
-	});
+		});
 	REG_FUNC(Exp, "exp", [](PNode node) -> double {
 		return exp(EvalNode(node->right));
-	});
+		});
 	REG_FUNC(Sqrt, "sqrt", [](PNode node) -> double {
 		return sqrt(EvalNode(node->right));
-	});
+		});
 
 	String tests[] = {
 		String("cos(x)"), // 635825
