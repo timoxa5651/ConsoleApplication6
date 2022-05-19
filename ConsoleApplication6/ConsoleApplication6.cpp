@@ -660,30 +660,82 @@ double fun3pp(double x) {
 }
 
 using fnt = double(*)(double);
-double get_roots(double a, double b, fnt afun, fnt bfun, fnt afunp, fnt bfunp, fnt afunpp, fnt bfunpp) {
-	constexpr float EPS = 1e-6;
+double get_roots(double a, double b, fnt afun, fnt afunp, fnt afunpp) {
+	constexpr float EPS = 1e-9;
 	while (abs(a - b) > EPS) {
-		cout << a << " " << b << endl;
 		if (afun(a) * afunpp(a) < 0) {
-			a = a - (afun(a) * (a - b)) / (afun(a) - bfun(b));
+			a = a - (afun(a) * (a - b)) / (afun(a) - afun(b));
 		}
 		else if(afun(a) * afunpp(a) > 0){
 			a = a - afun(a) / afunp(a);
 		}
 
-		if (bfun(b) * bfunpp(b) < 0) {
-			b = b - (bfun(b) * (b - a)) / (bfun(b) - afun(a));
+		if (afun(b) * afunpp(b) < 0 && abs(afun(b) - afun(a)) > 0) {
+			b = b - (afun(b) * (b - a)) / (afun(b) - afun(a));
 		}
-		else if (bfun(b) * bfunpp(b) > 0) {
-			b = b - bfun(b) / bfunp(b);
+		else if (afun(b) * afunpp(b) > 0) {
+			b = b - afun(b) / afunp(b);
 		}
+		//cout << a << " " << b << endl;
 	}
 	return (a + b) / 2;
 }
 
 void pr2() {
-	double x1 = get_roots(0.1, 1, fun1, fun3, fun1p, fun3p, fun1pp, fun3pp);
-	cout << x1 << endl;
+	cout << setprecision(9);
+
+	double x1 = get_roots(0.01, 1, 
+		[](double d) {
+			return fun1(d) - fun3(d);
+		},
+		[](double d) {
+			return fun1p(d) - fun3p(d);
+		}, 
+		[](double d) {
+			return fun1pp(d) - fun3pp(d);
+		});
+	cout << "X1 " << x1 << endl;
+
+	double x2 = get_roots(3, 4,
+		[](double d) {
+			return fun2(d) - fun3(d);
+		},
+		[](double d) {
+			return fun2p(d) - fun3p(d);
+		},
+			[](double d) {
+			return fun2pp(d) - fun3pp(d);
+		});
+	cout << "X2 " << x2 << endl;
+
+	double x3 = get_roots(3, 4,
+		[](double d) {
+			return fun1(d) - fun2(d);
+		},
+		[](double d) {
+			return fun1p(d) - fun2p(d);
+		},
+			[](double d) {
+			return fun1pp(d) - fun2pp(d);
+		});
+	cout << "X3 " << x3 << endl;
+
+	auto sum_fn = [](double a, double b, fnt fn) {
+		constexpr double st = 1e-5;
+		assert(a <= b);
+		double rs = 0;
+		for (; a <= b; a += st) {
+			rs += abs(fn(a)) * st;
+		}
+		//cout << "ret " << rs << endl;
+		return rs;
+	};
+
+	double result = 0;
+	result += sum_fn(x1, x3, fun1);
+	result -= sum_fn(x1, x2, fun3);
+	result -= sum_fn(x2, x3, fun2);
+	cout << result << endl;
 }
 
 int main()
