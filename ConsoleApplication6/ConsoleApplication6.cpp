@@ -628,8 +628,69 @@ void Input::on_mousedown(Vector2f pos) {
 	this->isActive = Rect<float>(this->pos.x, this->pos.y, this->size.x, this->size.y).contains(pos);
 }
 
+
+double fun1(double x) {
+	return 0.6 * x + 3;
+}
+double fun2(double x) {
+	return pow(x - 2, 3) - 1;
+}
+double fun3(double x) {
+	return 3 / x;
+}
+
+double fun1p(double x) {
+	return 0.6;
+}
+double fun2p(double x) {
+	return 3 * pow(x - 2, 2);
+}
+double fun3p(double x) {
+	return -3 / pow(x, 2);
+}
+
+double fun1pp(double x) {
+	return 0;
+}
+double fun2pp(double x) {
+	return 6 * (x - 2);
+}
+double fun3pp(double x) {
+	return 6 / pow(x, 3);
+}
+
+using fnt = double(*)(double);
+double get_roots(double a, double b, fnt afun, fnt bfun, fnt afunp, fnt bfunp, fnt afunpp, fnt bfunpp) {
+	constexpr float EPS = 1e-6;
+	while (abs(a - b) > EPS) {
+		cout << a << " " << b << endl;
+		if (afun(a) * afunpp(a) < 0) {
+			a -= (afun(a) * (a - b)) / (afun(a) - bfun(b));
+		}
+		else if(afun(a) * afunpp(a) > 0){
+			a -= afun(a) / afunp(a);
+		}
+
+		if (bfun(b) * bfunpp(b) < 0) {
+			b = b - (bfun(b) * (b - a)) / (bfun(b) - afun(a));
+		}
+		else if (bfun(b) * bfunpp(b) > 0) {
+			b = b - bfun(b) / bfunp(b);
+		}
+	}
+	return (a + b) / 2;
+}
+
+void pr2() {
+	double x1 = get_roots(0.1, 1, fun1, fun3, fun1p, fun3p, fun1pp, fun3pp);
+	cout << x1 << endl;
+}
+
 int main()
 {
+	pr2();
+	return 0;
+
 	REG_OPCODE(ConstNumber, "", 0, [](PNode node) -> double {
 		return node->arg;
 		});
