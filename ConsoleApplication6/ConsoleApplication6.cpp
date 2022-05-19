@@ -665,10 +665,10 @@ double get_roots(double a, double b, fnt afun, fnt bfun, fnt afunp, fnt bfunp, f
 	while (abs(a - b) > EPS) {
 		cout << a << " " << b << endl;
 		if (afun(a) * afunpp(a) < 0) {
-			a -= (afun(a) * (a - b)) / (afun(a) - bfun(b));
+			a = a - (afun(a) * (a - b)) / (afun(a) - bfun(b));
 		}
 		else if(afun(a) * afunpp(a) > 0){
-			a -= afun(a) / afunp(a);
+			a = a - afun(a) / afunp(a);
 		}
 
 		if (bfun(b) * bfunpp(b) < 0) {
